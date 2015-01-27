@@ -1,8 +1,5 @@
 /**---------------------------------------------------------------------------------------------------------------------
- * tgi-core/lib/misc/test-header
+ * tgi-interface-framework7/lib/_packaging/spec-header
  **/
-(function () {
-"use strict";
-var root = this;
-var testSpec = function(spec,CORE) {
-spec.mute(true);
+  var Framework7Interface = TGI.INTERFACE.FRAMEWORK7().Framework7Interface;
+  spec.mute(true);

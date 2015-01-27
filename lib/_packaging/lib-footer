@@ -1,13 +1,13 @@
 /**---------------------------------------------------------------------------------------------------------------------
- * tgi-core/lib/misc/lib-footer
+ * tgi-interface-framework7/lib/_packaging/lib-footer
  **/
   /* istanbul ignore next */
   if (typeof exports !== 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
-      exports = module.exports = redis;
+      exports = module.exports = TGI;
     }
-    exports.redis = redis;
+    exports.TGI = TGI;
   } else {
-    root.redis = redis;
+    root.TGI = TGI;
   }
 }).call(this);

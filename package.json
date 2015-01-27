@@ -1,5 +1,5 @@
 {
-  "name": "tgi-interface-f7",
+  "name": "tgi-interface-framework7",
   "version": "0.0.1",
   "description": "Framework7Interface",
   "contributors": [
@@ -9,8 +9,8 @@
     }
   ],
   "dependencies": {
-    "tgi-spec": ">=0.1.12",
-    "framework7": "0.10.0",
+    "tgi-spec": "*",
+    "framework7": "*",
     "tgi-utility": "*",
     "tgi-core": "*"
   },
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tgicloud/tgi-interface-f7.git"
+    "url": "https://github.com/tgicloud/tgi-interface-framework7.git"
   },
   "keywords": [
     "javascript",

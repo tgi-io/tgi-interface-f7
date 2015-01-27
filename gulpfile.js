@@ -12,26 +12,27 @@ var childProcess = require('child_process');
 // Source and _packaging
 var libFiles = [
   'lib/_packaging/lib-header',
-  'lib/tgi-interface-f7.lib.js',
   'node_modules/tgi-core/dist/tgi.core.chunk.js',
-  'lib/tgi-interface-f7.source.js',
+  'lib/tgi-interface-framework7.lib.js',
+  'lib/tgi-interface-framework7.source.js',
   'lib/_packaging/lib-footer'
 ];
 
 // The Spec
 var specFiles = [
+  'node_modules/tgi-core//lib/_packaging/spec-header',
   'lib/_packaging/spec-header',
   'node_modules/tgi-core/dist/tgi.core.spec.chunk.js',
-  'lib/tgi-interface-f7.spec.js',
+  'lib/tgi-interface-framework7.spec.js',
   'lib/_packaging/spec-footer'
 ];
 
 // Build Lib
 gulp.task('_buildLib', function () {
   return gulp.src(libFiles)
-    .pipe(concat('tgi-interface-f7.js'))
+    .pipe(concat('tgi-interface-framework7.js'))
     .pipe(gulp.dest('dist'))
-    .pipe(rename('tgi-interface-f7.min.js'))
+    .pipe(rename('tgi-interface-framework7.min.js'))
     .pipe(uglify())
     .pipe(gulp.dest('dist'));
 });
@@ -39,7 +40,7 @@ gulp.task('_buildLib', function () {
 // Build Spec
 gulp.task('_buildSpec', function () {
   return gulp.src(specFiles)
-    .pipe(concat('tgi-interface-f7.spec.js'))
+    .pipe(concat('tgi-interface-framework7.spec.js'))
     .pipe(gulp.dest('dist'));
 });
 
