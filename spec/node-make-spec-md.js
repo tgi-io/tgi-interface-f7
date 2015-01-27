@@ -33,8 +33,6 @@ spec.runTests(function (msg) {
       fs.writeFileSync('spec/README.md', spec.githubMarkdown(), 'utf8');
     }
 
-    if (msg.testsFailed || msg.testsPending)
-      process.exit(1);
   } else if (msg.log) {
     //console.log(msg.log);
   }
