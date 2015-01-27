@@ -4,6 +4,8 @@ The Framework7Interface uses  Framework7 (http://www.idangero.us/framework7) to 
 
 Core tests run: {"testsCreated":522}    
 
+This doc may be outdated since tests run in browser.  See source code for more info.    
+
 #### CONSTRUCTOR
 &nbsp;<b><i>objects created should be an instance of Interface:</i></b>
 ```javascript
