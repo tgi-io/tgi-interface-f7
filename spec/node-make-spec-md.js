@@ -1,13 +1,20 @@
 /**---------------------------------------------------------------------------------------------------------------------
- * tgi-spec/spec/node-runner.js
+ * tgi-interface-framework7/spec/node-make-spec-md.js
  */
+
 var Spec = require('tgi-spec/dist/tgi.spec.js');
-var testSpec = require('../dist/tgi.core.spec');
+var testSpec = require('../dist/tgi-interface-framework7.spec');
+var TGI = require('../dist/tgi-interface-framework7');
 var fs = require('fs');
-var CORE = require('../dist/tgi.core');
+var _package = require('../package');
+
+if (_package.version != TGI.INTERFACE.FRAMEWORK7().version) {
+  console.error('Library version %s does not match package.json %s',TGI.CORE().version,_package.version);
+  process.exit(1);
+}
 
 var spec = new Spec();
-testSpec(spec, CORE);
+testSpec(spec, TGI);
 spec.runTests(function (msg) {
   if (msg.error) {
     console.error(msg.error);
@@ -25,6 +32,9 @@ spec.runTests(function (msg) {
     } else {
       fs.writeFileSync('spec/README.md', spec.githubMarkdown(), 'utf8');
     }
+
+    if (msg.testsFailed || msg.testsPending)
+      process.exit(1);
   } else if (msg.log) {
     //console.log(msg.log);
   }

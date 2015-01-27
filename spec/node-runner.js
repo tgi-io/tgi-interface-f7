@@ -2,11 +2,11 @@
  * tgi-spec/spec/node-runner.js
  */
 var Spec = require('tgi-spec/dist/tgi.spec.js');
-var testSpec = require('../dist/tgi.core.spec');
-var TGI = require('../dist/tgi.core');
+var testSpec = require('../dist/tgi-interface-framework7.spec');
+var TGI = require('../dist/tgi-interface-framework7');
 var _package = require('../package');
 
-if (_package.version != TGI.CORE().version) {
+if (_package.version != TGI.INTERFACE.FRAMEWORK7().version) {
   console.error('Library version %s does not match package.json %s',TGI.CORE().version,_package.version);
   process.exit(1);
 }
