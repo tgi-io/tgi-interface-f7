@@ -2,7 +2,7 @@
 #### Framework7Interface
 The Framework7Interface uses  Framework7 (http://www.idangero.us/framework7) to create a IOS 7+ type of UI.    
 
-Core tests run: {"testsCreated":522}    
+Core tests run: {"testsCreated":524}    
 
 This doc may be outdated since tests run in browser.  See source code for more info.    
 
@@ -24,7 +24,18 @@ SurrogateInterface(); // jshint ignore:line
 ```javascript
 new SurrogateInterface({yo: 'whatup'});
 ```
-<blockquote><strong>Error: error creating Procedure: invalid property: yo</strong> thrown as expected
+<blockquote><strong>Error: error creating Interface: invalid property: yo</strong> thrown as expected
+</blockquote>
+&nbsp;<b><i>allowable properties:</i></b>
+```javascript
+new SurrogateInterface({name: 'pen', description: 'old school', vendor: Object}); // Vendor is reference needed vendor liblib
+```
+&nbsp;<b><i>must supply vendor in constructor:</i></b>
+```javascript
+new Framework7Interface().start(new Application(), new Presentation(), function () {
+});
+```
+<blockquote><strong>Error: Error initializing Framework7</strong> thrown as expected
 </blockquote>
 #### PROPERTIES
 #### name
@@ -37,7 +48,7 @@ return new SurrogateInterface().name;
 #### description
 &nbsp;<b><i>defaults to Interface implementation:</i></b>
 ```javascript
-this.log (new SurrogateInterface().description);
+this.log(new SurrogateInterface().description);
 ```
 <blockquote><strong>log: </strong>a Framework7Interface<br></blockquote>
 #### METHODS
@@ -248,27 +259,6 @@ new SurrogateInterface().choose('choose wisely', ['rock', 'paper', 'scissors']);
 <blockquote><strong>Error: callBack required</strong> thrown as expected
 </blockquote>
 #### Interface Integration
-&nbsp;<b><i>Test command execution mocking:</i></b>
-```javascript
-// Send 4 mocks and make sure we get 4 callback calls
-var self = this;
-self.callbackCount = 0;
-var testInterface = new SurrogateInterface();
-testInterface.start(new Application(), new Presentation(), function (request) {
-  if (request.type == 'mock count')
-    self.callbackCount++;
-  if (self.callbackCount > 3)
-    callback(true);
-});
-var cmds = [];
-var i;
-for (i = 0; i < 4; i++) {
-  cmds.push(new Request('mock count'));
-}
-testInterface.mockRequest(cmds);
-```
-<blockquote>returns <strong>true</strong> as expected
-</blockquote>
 &nbsp;<b><i>user queries:</i></b>
 ```javascript
 var io = new SurrogateInterface();
