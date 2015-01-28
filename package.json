@@ -10,9 +10,8 @@
   ],
   "dependencies": {
     "framework7": "^0.10.0",
-    "tgi-core": "0.0.33",
-    "tgi-spec": "^0.1.31",
-    "tgi-utility": "0.0.4"
+    "tgi-core": "*",
+    "tgi-spec": "*"
   },
   "scripts": {
     "test": "node spec/node-runner.js"
