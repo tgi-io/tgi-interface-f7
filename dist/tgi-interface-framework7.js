@@ -10,7 +10,7 @@ var root = this;
 var TGI = {
   CORE: function () {
     return {
-      version: '0.0.31',
+      version: '0.0.33',
       Application: Application,
       Attribute: Attribute,
       Command: Command,
@@ -641,13 +641,14 @@ function Interface(args) {
   args = args || {};
   args.name = args.name || '(unnamed)';
   args.description = args.description || 'a Interface';
+  args.vendor = args.vendor || null;
   var i;
-  var unusedProperties = getInvalidProperties(args, ['name', 'description']);
+  var unusedProperties = getInvalidProperties(args, ['name', 'description', 'vendor']);
   var errorList = [];
   for (i = 0; i < unusedProperties.length; i++) errorList.push('invalid property: ' + unusedProperties[i]);
   if (errorList.length > 1)
-    throw new Error('error creating Procedure: multiple errors');
-  if (errorList.length) throw new Error('error creating Procedure: ' + errorList[0]);
+    throw new Error('error creating Interface: multiple errors');
+  if (errorList.length) throw new Error('error creating Interface: ' + errorList[0]);
   // default state
   this.startCallback = null;
   this.stopCallback = null;
@@ -1421,13 +1422,14 @@ var REPLInterface = function (args) {
   args = args || {};
   args.name = args.name || '(unnamed)';
   args.description = args.description || 'a REPLInterface';
+  args.vendor = args.vendor || null;
   var i;
-  var unusedProperties = getInvalidProperties(args, ['name', 'description']);
+  var unusedProperties = getInvalidProperties(args, ['name', 'description', 'vendor']);
   var errorList = [];
   for (i = 0; i < unusedProperties.length; i++) errorList.push('invalid property: ' + unusedProperties[i]);
   if (errorList.length > 1)
-    throw new Error('error creating Procedure: multiple errors');
-  if (errorList.length) throw new Error('error creating Procedure: ' + errorList[0]);
+    throw new Error('error creating Interface: multiple errors');
+  if (errorList.length) throw new Error('error creating Interface: ' + errorList[0]);
   // default state
   this.startCallback = null;
   this.stopCallback = null;
@@ -2429,13 +2431,14 @@ var Framework7Interface = function (args) {
   args = args || {};
   args.name = args.name || '(unnamed)';
   args.description = args.description || 'a Framework7Interface';
+  args.vendor = args.vendor || null;
   var i;
-  var unusedProperties = getInvalidProperties(args, ['name', 'description']);
+  var unusedProperties = getInvalidProperties(args, ['name', 'description', 'vendor']);
   var errorList = [];
   for (i = 0; i < unusedProperties.length; i++) errorList.push('invalid property: ' + unusedProperties[i]);
   if (errorList.length > 1)
-    throw new Error('error creating Procedure: multiple errors');
-  if (errorList.length) throw new Error('error creating Procedure: ' + errorList[0]);
+    throw new Error('error creating Interface: multiple errors');
+  if (errorList.length) throw new Error('error creating Interface: ' + errorList[0]);
   // default state
   this.startCallback = null;
   this.stopCallback = null;
@@ -2445,7 +2448,21 @@ var Framework7Interface = function (args) {
   for (i in args) this[i] = args[i];
 };
 Framework7Interface.prototype = Object.create(Interface.prototype);
-
+/**
+ * Methods
+ */
+Framework7Interface.prototype.canMock = function () {
+  return this.vendor ? true : false;
+};
+Framework7Interface.prototype.start = function (application, presentation, callBack) {
+  if (!(application instanceof Application)) throw new Error('Application required');
+  if (!(presentation instanceof Presentation)) throw new Error('presentation required');
+  if (typeof callBack != 'function') throw new Error('callBack required');
+  this.application = application;
+  this.presentation = presentation;
+  this.startCallback = callBack;
+  if (!this.vendor) throw new Error('Error initializing Framework7');
+};
 /**---------------------------------------------------------------------------------------------------------------------
  * tgi-interface-framework7/lib/_packaging/lib-footer
  **/

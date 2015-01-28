@@ -1029,9 +1029,13 @@ spec.runnerInterfaceConstructor = function (SurrogateInterface) {
   spec.example('should make sure new operator used', Error('new operator required'), function () {
     SurrogateInterface(); // jshint ignore:line
   });
-  spec.example('should make sure argument properties are valid', Error('error creating Procedure: invalid property: yo'), function () {
+  spec.example('should make sure argument properties are valid', Error('error creating Interface: invalid property: yo'), function () {
     new SurrogateInterface({yo: 'whatup'});
   });
+  spec.example('allowable properties', undefined, function () {
+    new SurrogateInterface({name: 'pen', description: 'old school', vendor: Object}); // Vendor is reference needed vendor liblib
+  });
+
 };
 spec.runnerInterfaceMethods = function (SurrogateInterface) {
   spec.heading('PROPERTIES', function () {
@@ -1042,7 +1046,7 @@ spec.runnerInterfaceMethods = function (SurrogateInterface) {
     });
     spec.heading('description', function () {
       spec.example('defaults to Interface implementation', undefined, function () {
-        this.log (new SurrogateInterface().description);
+        this.log(new SurrogateInterface().description);
       });
     });
   });
@@ -1187,24 +1191,25 @@ spec.runnerInterfaceMethods = function (SurrogateInterface) {
     });
   });
   spec.heading('Interface Integration', function () {
-    spec.example('Test command execution mocking', spec.asyncResults(true), function (callback) {
-      // Send 4 mocks and make sure we get 4 callback calls
-      var self = this;
-      self.callbackCount = 0;
-      var testInterface = new SurrogateInterface();
-      testInterface.start(new Application(), new Presentation(), function (request) {
-        if (request.type == 'mock count')
-          self.callbackCount++;
-        if (self.callbackCount > 3)
-          callback(true);
+    if (new SurrogateInterface().canMock())
+      spec.example('Test command execution mocking', spec.asyncResults(true), function (callback) {
+        // Send 4 mocks and make sure we get 4 callback calls
+        var self = this;
+        self.callbackCount = 0;
+        var testInterface = new SurrogateInterface();
+        testInterface.start(new Application(), new Presentation(), function (request) {
+          if (request.type == 'mock count')
+            self.callbackCount++;
+          if (self.callbackCount > 3)
+            callback(true);
+        });
+        var cmds = [];
+        var i;
+        for (i = 0; i < 4; i++) {
+          cmds.push(new Request('mock count'));
+        }
+        testInterface.mockRequest(cmds);
       });
-      var cmds = [];
-      var i;
-      for (i = 0; i < 4; i++) {
-        cmds.push(new Request('mock count'));
-      }
-      testInterface.mockRequest(cmds);
-    });
     spec.example('user queries', spec.asyncResults('The End'), function (callback) {
       var io = new SurrogateInterface();
       var app = new Application({interface: io});
@@ -1285,7 +1290,6 @@ spec.runnerInterfaceMethods = function (SurrogateInterface) {
        */
       ok1();
     });
-
   });
   if (new SurrogateInterface().description == 'a REPLInterface') {
     var wasMuted = spec.mute(false).testsCreated;
@@ -1622,7 +1626,8 @@ spec.runnerListStoreIntegration = function (SurrogateStore) {
             return;
           }
           test.shouldBeTrue(list._items.length == 1, ('1 not ' + list._items.length));
-          test.shouldBeTrue(list.get('name') == 'Renée Zellweger', 'rz');
+          if (list._items.length)
+            test.shouldBeTrue(list.get('name') == 'Renée Zellweger', 'rz');
           getAlphabetical();
         });
       }
@@ -3553,6 +3558,10 @@ spec.test('tgi-core/lib/interfaces/tgi-core-interfaces-repl.spec.js', 'Framework
     spec.paragraph('This doc may be outdated since tests run in browser.  See source code for more info.');
     spec.heading('CONSTRUCTOR', function () {
       spec.runnerInterfaceConstructor(Framework7Interface);
+      spec.example('must supply vendor in constructor', Error('Error initializing Framework7'), function () {
+        new Framework7Interface().start(new Application(), new Presentation(), function () {
+        });
+      });
     });
     spec.runnerInterfaceMethods(Framework7Interface);
     spec.heading('METHODS', function () {

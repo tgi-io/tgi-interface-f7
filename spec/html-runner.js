@@ -1,7 +1,7 @@
 /**---------------------------------------------------------------------------------------------------------------------
  * tgi-spec/spec/html-runner.js
  **/
-var spec = new Spec();
+var spec = new Spec({timeOut:1000});
 testSpec(spec, TGI);
 spec.runTests(function (msg) {
   /**
@@ -11,51 +11,23 @@ spec.runTests(function (msg) {
     logError(msg.error);
   } else if (msg.done) {
     if (msg.testsFailed || msg.testsPending)
-      logError(msg.testsCreated + ' Tests attempted with ' + msg.testsFailed + ' errors');
+      logError(msg.testsCreated + ' Tests attempted with ' + msg.testsFailed + ' errors '  +
+      msg.testsPending + ' tests pending');
     else
       logSuccess(msg.testsCreated + ' Tests completed with no errors');
   } else if (msg.log) {
-    log(msg.log);
+    //log(msg.log);
   }
   /**
    * DOM rendering functions
    */
   function log(txt) {
-    var p = document.createElement("p");
-    p.style.margin = '2px';
-    p.style.padding = '1px';
-    p.style.backgroundColor = "#FFFFF0";
-    p.style.border = "solid";
-    p.style.borderWidth = "1px";
-    p.style.borderColor = "#7framework7F8F";
-    p.style.lineHeight = "1.0";
-    p.appendChild(document.createTextNode(txt));
-    document.body.appendChild(p);
+    console.log(txt);
   }
-
   function logError(txt) {
-    var p = document.createElement("p");
-    p.style.fontWeight = "bold";
-    p.style.margin = '2px';
-    p.style.padding = '1px';
-    p.style.backgroundColor = "#FFCCCC";
-    p.style.border = "solid";
-    p.style.borderWidth = "1px";
-    p.style.lineHeight = "1.5";
-    p.appendChild(document.createTextNode(txt));
-    document.body.appendChild(p);
+    console.error(txt);
   }
-
   function logSuccess(txt) {
-    var p = document.createElement("p");
-    p.style.fontWeight = "bold";
-    p.style.margin = '2px';
-    p.style.padding = '1px';
-    p.style.backgroundColor = "#CCFFCC";
-    p.style.border = "solid";
-    p.style.borderWidth = "1px";
-    p.style.lineHeight = "1.5";
-    p.appendChild(document.createTextNode(txt));
-    document.body.appendChild(p);
+    console.log(txt + ' !!!');
   }
 });
