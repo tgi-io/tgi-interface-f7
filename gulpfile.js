@@ -15,6 +15,8 @@ var libFiles = [
   'node_modules/tgi-core/dist/tgi.core.chunk.js',
   'lib/tgi-interface-framework7.lib.js',
   'lib/tgi-interface-framework7.source.js',
+  'lib/tgi-interface-framework7-navigation.source.js',
+  'lib/tgi-interface-framework7-queries.source.js',
   'lib/_packaging/lib-footer'
 ];
 

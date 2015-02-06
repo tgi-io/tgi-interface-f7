@@ -2473,7 +2473,73 @@ Framework7Interface.prototype.start = function (application, presentation, callB
   } catch (e) {
     throw new Error('Error initializing Framework7: ' + e);
   }
+  /**
+   * Add needed html to DOM
+   */
+  this.doc = {}; // Keep DOM element IDs here
+  if (this.presentation.get('contents').length)
+    this.htmlNavigation();
 };
+/**
+ * DOM helper
+ */
+Framework7Interface.addEle = function (parent, tagName, className, attributes) {
+  var ele = document.createElement(tagName);
+  if (className && className.length)
+    ele.className = className;
+  if (attributes)
+    for (var i in attributes)
+      if (attributes.hasOwnProperty(i)) ele.setAttribute(i, attributes[i]);
+  parent.appendChild(ele);
+  return ele;
+};
+
+/**---------------------------------------------------------------------------------------------------------------------
+ * lib/tgi-interface-framework7-navigation.source.js
+ */
+Framework7Interface.prototype.htmlNavigation = function () {
+  var addEle = Framework7Interface.addEle;
+  var self = this;
+
+  /**
+   * Main View
+   */
+  document.body.innerHTML = '' +
+  '<div class="statusbar-overlay"></div>' + // Status bar overlay for full screen mode (PhoneGap)
+  '<div class="panel-overlay"></div>'; // Panels overlay
+  this.views = addEle(document.body, 'div', 'views', {id: 'views'});// F7 Views Div
+  this.viewMain = addEle(this.views, 'div', 'view view-main', {id: 'viewMain'});// Tell F7 this is the main view
+  /**
+   * Navbar
+   */
+  this.navBar = addEle(this.viewMain, 'div', 'navBar', {id: 'navBar'}); // Top NavBar
+  this.navBarInner = addEle(this.navBar, 'div', 'navbar-inner', {id: 'navBarInner'}); // NavBar Inner
+  this.brand = addEle(this.navBarInner, 'div', 'center sliding', {id: 'brand'}); // NavBar Inner
+  this.brand.style.left = "126.5px";
+  this.brand.innerText = this.application.get('brand')
+
+  //this.renderNavBar();
+  //this.renderPages();   // Content based on toolbar selected
+  //this.renderToolBar(); // Changes pages when icon selected
+
+  // f7 thingy
+  //this.f7mainView = this.f7.addView('.view-main', {
+  //  dynamicNavbar: true
+  //});
+
+  // put toolbar back when on main index view
+  //this.f7.onPageBeforeAnimation('index', function (page) {
+  //  self.f7mainView.showToolbar();
+  //});
+
+  this.refreshNavigation();
+};
+
+Framework7Interface.prototype.refreshNavigation = function () {
+};
+/**---------------------------------------------------------------------------------------------------------------------
+ * lib/tgi-interface-framework7-queries.source.js
+ */
 Framework7Interface.prototype.info = function (text) {
   if (!text || typeof text !== 'string') throw new Error('text required');
   Framework7Interface._f7.addNotification({title: this.application.get('brand'), message: text, hold:3000});
@@ -2488,7 +2554,6 @@ Framework7Interface.prototype.ok = function (prompt, callBack) {
     Framework7Interface._f7.alert(prompt.replace(/\n/g,'<br>'), this.application.get('brand'), function () {
       callBack();
     });
-    //this.okCallBack = callBack;
   }
 };
 Framework7Interface.prototype.yesno = function (prompt, callBack) {
@@ -2514,7 +2579,6 @@ Framework7Interface.prototype.yesno = function (prompt, callBack) {
         }
       }]
     });
-    //this.yesnoCallBack = callBack;
   }
 };
 Framework7Interface.prototype.ask = function (prompt, attribute, callBack) {
@@ -2533,7 +2597,6 @@ Framework7Interface.prototype.ask = function (prompt, attribute, callBack) {
         callBack();
       }
     );
-    //this.askCallBack = callBack;
   }
 };
 Framework7Interface.prototype.choose = function (prompt, choices, callBack) {
@@ -2545,7 +2608,6 @@ Framework7Interface.prototype.choose = function (prompt, choices, callBack) {
     delete this.choosePending;
     callBack(Interface.firstMatch(this.chooseResponse, choices));
   } else {
-
     var groups = [];
     groups.push([{text: prompt.replace(/\n/g,'<br>'), label: true}]);
     if (choices.length > 0) groups.push([{text: choices[0], onClick: cb0}]);
@@ -2560,11 +2622,7 @@ Framework7Interface.prototype.choose = function (prompt, choices, callBack) {
     if (choices.length > 9) groups.push([{text: choices[9], onClick: cb9}]);
     if (choices.length > 10) throw new Error('max choices reached in choose');
     groups.push([{text: 'Cancel', color: 'red', onClick: cbCancel}]);
-
     Framework7Interface._f7.actions(groups);
-
-    //this.chooseCallBack = callBack;
-    //this.chooseChoices = choices;
   }
   /**
    * Since framework does not return any info in callback
