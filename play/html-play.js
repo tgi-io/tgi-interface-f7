@@ -109,12 +109,19 @@ var commands =   new tgi.Command({name: 'Commands', type: 'Menu', contents: [
   presCommand,
   funcCommand,
   procCommand
-]})
+]});
 
 /**
  * Navigation
  */
 nav.set('contents', [
+  new tgi.Command({name: 'bus', icon: 'fa-bus'}),
+  new tgi.Command({name: 'plane', icon: 'fa-plane'}),
+  new tgi.Command({name: 'train', icon: 'fa-train'}),
+  new tgi.Command({name: 'automobile', icon: 'fa-automobile'}),
+  new tgi.Command({name: 'ship', icon: 'fa-ship'}),
+  new tgi.Command({name: 'bicycle', icon: 'fa-bicycle'}),
+  new tgi.Command({name: 'subway', icon: 'fa-subway'}),
   new tgi.Command({name: 'Stooges', type: 'Menu', contents: [
     'The Three Stooges',
     '-',
@@ -134,4 +141,4 @@ nav.set('contents', [
 app.start(function (request) {
   app.info('app got ' + JSON.stringify(request));
 });
-app.info("What's up?");
+//app.info("What's up?");
