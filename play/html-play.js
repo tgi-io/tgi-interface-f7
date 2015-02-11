@@ -18,7 +18,7 @@ var name,
   isDude,
   color;
 var userQuerieCommand = new tgi.Command({
-  name: 'User Queries', type: 'Procedure', contents: new tgi.Procedure({
+  name: 'User Queries', icon: 'fa-comments', type: 'Procedure', contents: new tgi.Procedure({
     tasks: [
       function () {
         var task = this;
@@ -102,7 +102,7 @@ pres.set('contents', [
 
 ]);
 var presCommand = new tgi.Command({name: 'Presentation', type: 'Presentation', contents: pres});
-var commands =   new tgi.Command({name: 'Commands', type: 'Menu', contents: [
+var commands =   new tgi.Command({name: 'Commands', icon: 'fa-tasks', type: 'Menu', contents: [
   'Command Types',
   '-',
   new tgi.Command({name: 'Stub', type: 'Stub'}),
@@ -115,14 +115,7 @@ var commands =   new tgi.Command({name: 'Commands', type: 'Menu', contents: [
  * Navigation
  */
 nav.set('contents', [
-  new tgi.Command({name: 'bus', icon: 'fa-bus'}),
-  new tgi.Command({name: 'plane', icon: 'fa-plane'}),
-  new tgi.Command({name: 'train', icon: 'fa-train'}),
-  new tgi.Command({name: 'automobile', icon: 'fa-automobile'}),
-  new tgi.Command({name: 'ship', icon: 'fa-ship'}),
-  new tgi.Command({name: 'bicycle', icon: 'fa-bicycle'}),
-  new tgi.Command({name: 'subway', icon: 'fa-subway'}),
-  new tgi.Command({name: 'Stooges', type: 'Menu', contents: [
+  new tgi.Command({name: 'Stooges', icon: 'fa-group', type: 'Menu', contents: [
     'The Three Stooges',
     '-',
     stubMoe,
@@ -131,6 +124,13 @@ nav.set('contents', [
   ]}),
   commands,
   userQuerieCommand,
+  new tgi.Command({name: 'bus', icon: 'fa-bus'}),
+  new tgi.Command({name: 'plane', icon: 'fa-plane'}),
+  new tgi.Command({name: 'train', icon: 'fa-train'}),
+  new tgi.Command({name: 'automobile', icon: 'fa-automobile'}),
+  new tgi.Command({name: 'ship', icon: 'fa-ship'}),
+  new tgi.Command({name: 'bicycle', icon: 'fa-bicycle'}),
+  new tgi.Command({name: 'subway', icon: 'fa-subway'}),
   '-',
   new tgi.Command({name: 'Account'})
 ]);

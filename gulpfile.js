@@ -17,6 +17,7 @@ var libFiles = [
   'lib/tgi-interface-framework7.source.js',
   'lib/tgi-interface-framework7-navigation.source.js',
   'lib/tgi-interface-framework7-queries.source.js',
+  'lib/tgi-interface-framework7-views.source.js',
   'lib/_packaging/lib-footer'
 ];
 

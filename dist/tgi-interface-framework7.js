@@ -10,7 +10,7 @@ var root = this;
 var TGI = {
   CORE: function () {
     return {
-      version: '0.0.34',
+      version: '0.1.0',
       Application: Application,
       Attribute: Attribute,
       Command: Command,
@@ -476,8 +476,8 @@ Command.prototype._emitEvent = function (event) {
       }
     }
   }
-  if (event == 'Completed') // if command complete release listeners
-    this._eventListeners = [];
+  //if (event == 'Completed') // if command complete release listeners
+  //  this._eventListeners = [];
 };
 Command.prototype.execute = function () {
   if (!this.type) throw new Error('command not implemented');
@@ -501,11 +501,10 @@ Command.prototype.execute = function () {
   try {
     switch (this.type) {
       case 'Function':
-        this.status = 0;
         setTimeout(callFunc, 0);
         break;
       case 'Procedure':
-        setTimeout(procedureExecute, 0);
+        setTimeout(procedureExecuteInit, 0);
         break;
     }
   } catch (e) {
@@ -516,6 +515,7 @@ Command.prototype.execute = function () {
   }
   this._emitEvent('AfterExecute');
   function callFunc() {
+    self.status = 0;
     try {
       self.contents.apply(self, args); // give function this context to command object (self)
     } catch (e) {
@@ -525,8 +525,7 @@ Command.prototype.execute = function () {
       self.status = -1;
     }
   }
-
-  function procedureExecute() {
+  function procedureExecuteInit() {
     self.status = 0;
     var tasks = self.contents.tasks || [];
     for (var t = 0; t < tasks.length; t++) {
@@ -541,6 +540,13 @@ Command.prototype.execute = function () {
         tasks[t].command._parentProcedure = self;
         tasks[t].command.onEvent('*', ProcedureEvents);
       }
+      tasks[t].command.status = undefined;
+    }
+    procedureExecute();
+  }
+  function procedureExecute() {
+    var tasks = self.contents.tasks || [];
+    for (var t = 0; t < tasks.length; t++) {
       // Execute if it is time
       var canExecute = true;
       if (typeof (tasks[t].command.status) == 'undefined') {
@@ -607,10 +613,10 @@ Command.prototype.complete = function () {
   this.status = 1;
   this._emitEvent('Completed');
 };
-Command.prototype.restart = function () {
-  // TODO add to tests
-  this._emitEvent('Completed');
-};
+//Command.prototype.restart = function () {
+//  this.status = undefined;
+//  this._emitEvent('Completed');
+//};
 /**
  * Simple functions
  */
@@ -1563,7 +1569,6 @@ REPLInterface.prototype.info = function (text) {
     this.captureOutputCallback(text);
   }
 };
-
 REPLInterface.prototype.ok = function (prompt, callBack) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
   if (typeof callBack != 'function') throw new Error('callBack required');
@@ -1683,8 +1688,7 @@ REPLInterface.prototype.evaluateInput = function (line) {
    * This should never get this far ...
    */
   if (this.captureOutputCallback) this.captureOutputCallback('input ignored: ' + line);
-}
-;
+};
 REPLInterface.prototype.captureOutput = function (callback) {
   this.captureOutputCallback = callback;
 };
@@ -2476,9 +2480,10 @@ Framework7Interface.prototype.start = function (application, presentation, callB
   /**
    * Add needed html to DOM
    */
-  this.doc = {}; // Keep DOM element IDs here
+  this.doc = {}; // Keep DOM element IDs here todo move all variables of Framework7Interface in here to avoid future namespace collisions
   if (this.presentation.get('contents').length)
     this.htmlNavigation();
+  this.htmlViews();
 
 
 //this.renderNavBar();
@@ -2494,8 +2499,6 @@ Framework7Interface.prototype.start = function (application, presentation, callB
 //this.f7.onPageBeforeAnimation('index', function (page) {
 //  self.f7mainView.showToolbar();
 //});
-
-
 
 
 };
@@ -2536,35 +2539,8 @@ Framework7Interface.prototype.htmlNavigation = function () {
   this.leftOfBrand = addEle(this.navBarInner, 'div', 'left'); // placeholder for proper alignment
   this.brand = addEle(this.navBarInner, 'div', 'center', {id: 'brand'}); // Brand
   this.rightOfBrand = addEle(this.navBarInner, 'div', 'right');  // placeholder for proper alignment
-  //this.brand.style.left = "126.5px"; // todo fix by centering correctly
   this.brand.innerText = this.application.get('brand');
-  /**
-   * Pages
-   */
-  this.pages = addEle(this.viewMain, 'div', 'pages navbar-through toolbar-through', {id: 'pages'});
-  this.dataPage = addEle(this.pages, 'div', 'page', {id: 'dataPage'});
-  this.pageContent = addEle(this.dataPage, 'div', 'page-content', {id: 'pageContent'});
-  this.tabs = addEle(this.pageContent, 'div', 'tabs', {id: 'tabs'});
-  /**
-   * Fake page for now
-   */
-  this.fakePage1 = addEle(this.tabs, 'div', 'tab', {id: 'tab1'});
-  for (var i = 0; i < 10; i++) {
-    addEle(this.fakePage1, 'div', 'content-block-title').innerHTML = 'fakePage1';
-    addEle(this.fakePage1, 'div', 'content-block').innerHTML = 'This is a fake page.  What else can I say about it.' +
-    '  It\'s not real first of all.  It is just a fake page.';
-  }
-  addEle(this.fakePage1, 'div', 'content-block-title').innerHTML = 'Summary';
-  addEle(this.fakePage1, 'div', 'content-block').innerHTML = 'This is a fake page.  What else can I say about it.' +
-  '  It\'s not real first of all.  It is just a fake page.';
 
-  this.fakePage2 = addEle(this.tabs, 'div', 'tab', {id: 'tab2'});
-  addEle(this.fakePage2, 'div', 'content-block-title').innerHTML = 'NUMBER TWO';
-  addEle(this.fakePage2, 'div', 'content-block').innerHTML = 'This is a fake page AGAIN!!!!!!!!!!  What else can I say about it.' +
-  '  It\'s not real first of all.  It is just a fake page.';
-
-  Framework7Interface._f7.hideNavbar(this.navBar);
-  Framework7Interface._f7.showNavbar(this.navBar);
   /**
    * Toolbar (Bottom)
    */
@@ -2580,7 +2556,7 @@ Framework7Interface.prototype.refreshToolbar = function () {
    * (re)initialize structure
    */
   framework7Interface.toolBarInner.innerHTML = '';
-  framework7Interface.toolBarTabs = [];
+  framework7Interface.toolBarCommands = [];
   /**
    * Prep main menu
    */
@@ -2601,8 +2577,7 @@ Framework7Interface.prototype.refreshToolbar = function () {
   var iconsToShow = needMore ? iconMaxFit : menuCount;
   var iconsShowing = 0;
   /**
-   * Need to track what is shown for when "more..." page rendered
-   * todo get framework7Interface from tequila
+   * todo Need to track what is shown for when "more..." page rendered
    */
   /**
    * create each toolbar link
@@ -2619,41 +2594,55 @@ Framework7Interface.prototype.refreshToolbar = function () {
   function addLink(item) {
     var link = {
       command: item,
-      id: null,
-      htmlElement: null
+      domElement: null,
+      id: null, // id for domElement so we can find in DOM
+      primaryView: null, // views are lazy created
+      subMenu: [] // if needed for nested menus
     };
-    framework7Interface.toolBarTabs.push(link);
-    link.id = 'tbLink' + (framework7Interface.toolBarTabs.length);
-    link.htmlElement = addEle(framework7Interface.toolBarInner, 'a', 'tab-link', {id: link.id, href: '#'});
-    link.htmlElement.innerHTML = '<i class="fa ' + (item.icon || 'fa-circle-thin') + ' fa-lg"></i><span class="tabbar-label">' + item.name + '</span>';
+    framework7Interface.toolBarCommands.push(link);
+    link.id = 'tbLink' + (framework7Interface.toolBarCommands.length);
+    link.domElement = addEle(framework7Interface.toolBarInner, 'a', 'tab-link', {id: link.id, href: '#'});
+    link.domElement.innerHTML = '<i class="fa ' + (item.icon || 'fa-circle-thin') + ' fa-lg"></i><span class="tabbar-label">' + item.name + '</span>';
     $$('#' + link.id).on('click', function () {
       var htmlID = $$(this).attr('id');
-      var toolBarTab = parseInt(right(htmlID, htmlID.length-6))-1;
-      executeCommand(framework7Interface.toolBarTabs[toolBarTab].command);
+      var toolBarCommandNo = parseInt(right(htmlID, htmlID.length - 6)) - 1;
+      executeLink(framework7Interface.toolBarCommands[toolBarCommandNo]);
     });
   }
 
-  function executeCommand(command) {
-    framework7Interface.application.info('executeCommand: ' + command);
+  function executeLink(toolBarCommand) {
+    var command = toolBarCommand.command;
+    switch (command.type) {
+      case 'Procedure':
+        command.execute();
+        break;
+      case 'Menu':
+        framework7Interface.showView(toolBarCommand);
+        break;
+      case 'Stub':
+        framework7Interface.application.ok('This feature is not available.', function () {
+        });
+        break;
+      default:
+        framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+        });
+        break;
+    }
   }
 
 
-  ///**
-  // * Fake links
-  // */
-  //addEle(this.toolBarInner, 'a', 'tab-link', {href: '#tab1'}).innerHTML = '<i class="fa fa-shirtsinbulk fa-lg"></i><span class="tabbar-label">Shirt</span>';
-  //addEle(this.toolBarInner, 'a', 'tab-link', {href: '#tab2'}).innerHTML = '<i class="fa fa-facebook-official fa-lg"></i><span class="tabbar-label">facebook</span>';
-  //var btn = addEle(this.toolBarInner, 'a', 'tab-link', {
-  //  id: 'btnz',
-  //  href: '#'
-  //}).innerHTML = '<i class="fa fa-train fa-lg"></i><span class="tabbar-label">Train</span>';
-  //Framework7Interface._f7.showTab('#tab1');
-  //$$('#btnz').on('click', function (e) {
-  //  Framework7Interface._f7.showTab('#tab1');
-  //  self.application.info('yo');
-  //});
 };
-
+Framework7Interface.prototype.highlightToolBarCommand = function (toolBarCommand) {
+  var $$ = Dom7;
+  for (var i = 0; i < this.toolBarCommands.length; i++) {
+    var cmd = this.toolBarCommands[i];
+    $$(cmd.domElement).removeClass('active');
+  }
+  $$(toolBarCommand.domElement).addClass('active');
+};
+Framework7Interface.prototype.updateBrand = function (text) {
+  this.brand.innerText = text;
+};
 
 /**---------------------------------------------------------------------------------------------------------------------
  * lib/tgi-interface-framework7-queries.source.js
@@ -2789,6 +2778,126 @@ Framework7Interface.prototype.choose = function (prompt, choices, callBack) {
     callBack(choices[9]);
   }
 };
+/**---------------------------------------------------------------------------------------------------------------------
+ * lib/tgi-interface-framework7-views.source.js
+ */
+Framework7Interface.prototype.htmlViews = function () {
+  var framework7Interface = this;
+  var addEle = Framework7Interface.addEle;
+  var $$ = Dom7;
+  /**
+   * F7 Pages container, because we use fixed-through navbar and toolbar, it has additional appropriate classes
+   */
+  framework7Interface.pages = addEle(framework7Interface.viewMain, 'div', 'pages navbar-through toolbar-through', {id: 'pages'}); // F7 Pages container
+  framework7Interface.dataPage = addEle(framework7Interface.pages, 'div', 'page', {
+    id: 'dataPage',
+    'data-page': 'index'
+  }); // F7 data-page
+  framework7Interface.pageContent = addEle(framework7Interface.dataPage, 'div', 'page-content', {id: 'pageContent'}); // F7 page-content
+  framework7Interface.tabs = addEle(framework7Interface.pageContent, 'div', 'tabs', {id: 'tabs'}); // F7 tabs
+  /**
+   * Starter page
+   */
+  var starterPage = addEle(framework7Interface.tabs, 'div', 'tab active', {id: 'starterPage'});
+  addEle(starterPage, 'div', 'content-block-title').innerHTML = framework7Interface.application.get('brand');
+  framework7Interface.tempLog = addEle(starterPage, 'div', 'content-block');
+  framework7Interface.tempLog.innerHTML = 'Touch the icons below to explore!';
+};
+Framework7Interface.prototype.showView = function (toolBarCommand) {
+  var framework7Interface = this;
+  var addEle = Framework7Interface.addEle;
+  var $$ = Dom7;
+  var command = toolBarCommand.command;
+  /**
+   * Lazy Create DOM stuff
+   */
+  if (!toolBarCommand.primaryView) {
+    toolBarCommand.primaryView = addEle(framework7Interface.tabs, 'div', 'tab');
+    switch (command.type) {
+      case 'Menu':
+        createMenuView(toolBarCommand.command.contents);
+        break;
+      default:
+        addEle(toolBarCommand.primaryView, 'div', 'content-block-title').innerHTML = toolBarCommand.command.name;
+        toolBarCommand.primaryViewBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block');
+        toolBarCommand.primaryViewBlock.innerHTML = JSON.stringify(toolBarCommand.command);
+        break;
+    }
+  }
+  /**
+   * Create menu views
+   */
+  function createMenuView(menu) {
+    var contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block');
+    var listBlock = addEle(contentBlock, 'div', 'list-block');
+    for (var i = 0; i < menu.length; i++) {
+      var item = menu[i];
+      var ul = addEle(listBlock, 'ul');
+      if (typeof item == 'string') {
+        if (item != '-')
+          addEle(ul, 'p').innerHTML = item;
+      } else {
+        var link = {
+          command: item,
+          domElement: null,
+          id: null
+        };
+        toolBarCommand.subMenu.push(link);
+        link.id = toolBarCommand.id + '-' + (toolBarCommand.subMenu.length);
+        var li = addEle(ul, 'li');
+        link.domElement = addEle(li, 'a', 'item-link', {id: link.id, href: '#'});
+        var itemContent = addEle(link.domElement, 'div', 'item-content');
+        var itemMedia = addEle(itemContent, 'div', 'item-media');
+        var itemInner = addEle(itemContent, 'div', 'item-inner');
+        addEle(itemMedia, 'i', 'fa ' + (item.icon || 'fa-beer') + ' fa-lg');
+        addEle(itemInner, 'div', 'item-title').innerHTML = item.name;
+        $$('#' + link.id).on('click', function () {
+          var htmlID = $$(this).attr('id');
+          var dash = htmlID.indexOf('-') + 1;
+          var rootID = left(htmlID, dash - 1);
+          var toolBarCommandNo = parseInt(right(rootID, rootID.length - 6)) - 1;
+          var subMenuNo = parseInt(right(htmlID, htmlID.length - dash)) - 1;
+          executeLink(framework7Interface.toolBarCommands[toolBarCommandNo].subMenu[subMenuNo]);
+        });
+      }
+    }
+    function executeLink(toolBarCommand) { // BROKEN - NOT
+      var command = toolBarCommand.command;
+      switch (command.type) {
+        case 'Function':
+        case 'Procedure':
+          command.execute();
+          break;
+        case 'Stub':
+          framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
+          });
+          break;
+        default:
+          framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+          });
+          break;
+      }
+    }
+
+  }
+
+  /**
+   * Reflect view state
+   */
+  framework7Interface.activateView(toolBarCommand.primaryView);
+  framework7Interface.updateBrand(command.name);
+  framework7Interface.highlightToolBarCommand(toolBarCommand);
+};
+Framework7Interface.prototype.activateView = function (view) {
+  var $$ = Dom7;
+  $$('#starterPage').removeClass('active');
+  for (var i = 0; i < this.toolBarCommands.length; i++) {
+    var cmd = this.toolBarCommands[i];
+    $$(cmd.primaryView).removeClass('active');
+  }
+  $$(view).addClass('active');
+};
+
 /**---------------------------------------------------------------------------------------------------------------------
  * tgi-interface-framework7/lib/_packaging/lib-footer
  **/
