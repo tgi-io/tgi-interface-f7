@@ -10,7 +10,7 @@ var root = this;
 var TGI = {
   CORE: function () {
     return {
-      version: '0.1.0',
+      version: '0.3.5',
       Application: Application,
       Attribute: Attribute,
       Command: Command,
@@ -303,8 +303,8 @@ Attribute.prototype.getObjectStateErrors = function () {
   this.validationMessage = this.validationErrors.length > 0 ? this.validationErrors[0] : '';
   return this.validationErrors;
 };
-Attribute.prototype.validate = function (callBack) {
-  if (typeof callBack != 'function') throw new Error('callback is required');
+Attribute.prototype.validate = function (callback) {
+  if (typeof callback != 'function') throw new Error('callback is required');
   // First check object state
   this.getObjectStateErrors();
   this._emitEvent('Validate');
@@ -350,7 +350,7 @@ Attribute.prototype.validate = function (callBack) {
   // All done...
   this.validationMessage = this.validationErrors.length > 0 ? this.validationErrors[0] : '';
   this._emitEvent('StateChange');
-  callBack.call(this);
+  callback.call(this);
 };
 Attribute.prototype.setError = function (condition, description) {
   condition = condition || '';
@@ -388,17 +388,17 @@ function Command(args) {
   args = args || {};
   var i;
   var unusedProperties = getInvalidProperties(args,
-    ['name', 'description', 'type', 'contents', 'scope', 'timeout', 'theme', 'icon', 'bucket']);
+    ['name', 'description', 'type', 'contents', 'scope', 'timeout', 'theme', 'icon', 'bucket', 'presentationMode','location','images']);
   var errorList = [];
   for (i = 0; i < unusedProperties.length; i++) errorList.push('invalid property: ' + unusedProperties[i]);
   if (errorList.length > 1) throw new Error('error creating Command: multiple errors');
   if (errorList.length) throw new Error('error creating Command: ' + errorList[0]);
   for (i in args) this[i] = args[i];
-  this.name = this.name || "(unnamed)"; // name is optional
+  this.name = this.name || "a command"; // name is optional
   if ('string' != typeof this.name) throw new Error('name must be string');
   if ('undefined' == typeof this.description) this.description = this.name + ' Command';
   if ('undefined' == typeof this.type) this.type = 'Stub';
-  if (!contains(['Stub', 'Menu', 'Presentation', 'Function', 'Procedure'], this.type)) throw new Error('Invalid command type: ' + this.type);
+  if (!contains(Command.getTypes(), this.type)) throw new Error('Invalid command type: ' + this.type);
   switch (this.type) {
     case 'Stub':
       break;
@@ -413,6 +413,9 @@ function Command(args) {
       break;
     case 'Presentation':
       if (!(this.contents instanceof Presentation)) throw new Error('contents must be a Presentation');
+      this.presentationMode = this.presentationMode || 'View';
+      if (!contains(Command.getPresentationModes(), this.presentationMode)) throw new Error('Invalid presentationMode: ' + this.presentationMode);
+      //['View', 'Edit', 'List']
       break;
     case 'Function':
       if (typeof this.contents != 'function') throw new Error('contents must be a Function');
@@ -466,20 +469,20 @@ Command.prototype.onEvent = function (events, callback) {
   // All good add to chain
   this._eventListeners.push({events: events, callback: callback});
 };
-Command.prototype._emitEvent = function (event) {
+Command.prototype._emitEvent = function (event, obj) {
   var i;
   for (i in this._eventListeners) {
     if (this._eventListeners.hasOwnProperty(i)) {
       var subscriber = this._eventListeners[i];
       if ((subscriber.events.length && subscriber.events[0] === '*') || contains(subscriber.events, event)) {
-        subscriber.callback.call(this, event);
+        subscriber.callback.call(this, event, obj);
       }
     }
   }
   //if (event == 'Completed') // if command complete release listeners
   //  this._eventListeners = [];
 };
-Command.prototype.execute = function () {
+Command.prototype.execute = function (context) {
   if (!this.type) throw new Error('command not implemented');
   if (!contains(['Function', 'Procedure', 'Presentation'], this.type)) throw new Error('command type ' + this.type + ' not implemented');
   var errors;
@@ -493,6 +496,7 @@ Command.prototype.execute = function () {
         else
           throw new Error('error executing Presentation: ' + errors[0]);
       }
+      if (!(context instanceof Interface)) throw new Error('interface param required');
       break;
   }
   var self = this;
@@ -506,10 +510,13 @@ Command.prototype.execute = function () {
       case 'Procedure':
         setTimeout(procedureExecuteInit, 0);
         break;
+      case 'Presentation':
+        context.render(this.contents, this.presentationMode);
+        break;
     }
   } catch (e) {
     this.error = e;
-    this._emitEvent('Error');
+    this._emitEvent('Error', e);
     this._emitEvent('Completed');
     this.status = -1;
   }
@@ -520,11 +527,12 @@ Command.prototype.execute = function () {
       self.contents.apply(self, args); // give function this context to command object (self)
     } catch (e) {
       self.error = e;
-      self._emitEvent('Error');
+      self._emitEvent('Error', e);
       self._emitEvent('Completed');
       self.status = -1;
     }
   }
+
   function procedureExecuteInit() {
     self.status = 0;
     var tasks = self.contents.tasks || [];
@@ -544,6 +552,7 @@ Command.prototype.execute = function () {
     }
     procedureExecute();
   }
+
   function procedureExecute() {
     var tasks = self.contents.tasks || [];
     for (var t = 0; t < tasks.length; t++) {
@@ -581,12 +590,12 @@ Command.prototype.execute = function () {
     }
   }
 
-  function ProcedureEvents(event) {
+  function ProcedureEvents(event, obj) {
     var tasks = self.contents.tasks;
     var allTasksDone = true; // until proved wrong ...
     switch (event) {
       case 'Error':
-        self._emitEvent('Error');
+        self._emitEvent('Error', obj);
         break;
       case 'Completed':
         for (var t in tasks) {
@@ -613,18 +622,22 @@ Command.prototype.complete = function () {
   this.status = 1;
   this._emitEvent('Completed');
 };
-//Command.prototype.restart = function () {
-//  this.status = undefined;
-//  this._emitEvent('Completed');
-//};
+Command.prototype.restart = function () {
+  this.status = undefined;
+  this._emitEvent('Restarted');
+  this.execute();
+};
 /**
  * Simple functions
  */
 Command.getTypes = function () {
-  return ['ID', 'String', 'Date', 'Boolean', 'Number', 'Model', 'Group', 'Table', 'Object'].slice(0); // copy array
+  return ['Stub', 'Menu', 'Presentation', 'Function', 'Procedure'].slice(0); // copy array
 };
 Command.getEvents = function () {
   return ['BeforeExecute', 'AfterExecute', 'Error', 'Aborted', 'Completed'].slice(0); // copy array
+};
+Command.getPresentationModes = function () {
+  return ['View', 'Edit', 'List'].slice(0); // copy array
 };
 /**---------------------------------------------------------------------------------------------------------------------
  * tgi-core/lib/tgi-core-delta.source.js
@@ -660,8 +673,8 @@ function Interface(args) {
     throw new Error('error creating Interface: multiple errors');
   if (errorList.length) throw new Error('error creating Interface: ' + errorList[0]);
   // default state
-  this.startCallback = null;
-  this.stopCallback = null;
+  this.startcallback = null;
+  this.stopcallback = null;
   this.mocks = [];
   this.mockPending = false;
   // args ok, now copy to object
@@ -677,7 +690,7 @@ Interface.prototype.canMock = function () {
   return true;
 };
 Interface.prototype.doMock = function () {
-  var callBack;
+  var callback, result;
   // If no more elements then we are done
   this.mockPending = false;
   if (this.mocks.length < 1)
@@ -685,31 +698,42 @@ Interface.prototype.doMock = function () {
   // Get oldest ele and pass to callback if it is set
   var thisMock = this.mocks.shift();
   if (thisMock.type == 'ok') {
-    if (this.okCallBack) {
-      callBack = this.okCallBack;
-      delete this.okCallBack;
-      callBack();
+    if (this.okcallback) {
+      callback = this.okcallback;
+      delete this.okcallback;
+      callback();
     } else {
       this.okPending = true;
     }
     return;
   }
-  if (thisMock.type == 'yes' || thisMock.type == 'no') {
-    if (this.yesnoCallBack) {
-      callBack = this.yesnoCallBack;
-      delete this.yesnoCallBack;
-      callBack(thisMock.type == 'yes');
+  if (thisMock.type == 'yes' || thisMock.type == 'no' || thisMock.type == 'cancel') {
+    switch (thisMock.type) {
+      case 'yes':
+        result = true;
+        break;
+      case 'no':
+        result = false;
+        break;
+      case 'cancel':
+        result = undefined;
+        break;
+    }
+    if (this.yesnocallback) {
+      callback = this.yesnocallback;
+      delete this.yesnocallback;
+      callback(result);
     } else {
       this.yesnoPending = true;
-      this.yesnoResponse = (thisMock.type == 'yes');
+      this.yesnoResponse = result;
     }
     return;
   }
   if (thisMock.type == 'ask') {
-    if (this.askCallBack) {
-      callBack = this.askCallBack;
-      delete this.askCallBack;
-      callBack(thisMock.value);
+    if (this.askcallback) {
+      callback = this.askcallback;
+      delete this.askcallback;
+      callback(thisMock.value);
     } else {
       this.askPending = true;
       this.askResponse = thisMock.value;
@@ -717,10 +741,10 @@ Interface.prototype.doMock = function () {
     return;
   }
   if (thisMock.type == 'choose') {
-    if (this.chooseCallBack) {
-      callBack = this.chooseCallBack;
-      delete this.chooseCallBack;
-      callBack(Interface.firstMatch(thisMock.value, this.chooseChoices));
+    if (this.choosecallback) {
+      callback = this.choosecallback;
+      delete this.choosecallback;
+      callback(Interface.firstMatch(thisMock.value, this.chooseChoices));
     } else {
       this.choosePending = true;
       this.chooseResponse = thisMock.value;
@@ -751,77 +775,79 @@ Interface.prototype.mockRequest = function (args) {
     this.doMock();
   }
 };
-Interface.prototype.start = function (application, presentation, callBack) {
+Interface.prototype.start = function (application, presentation, callback) {
   if (!(application instanceof Application)) throw new Error('Application required');
   if (!(presentation instanceof Presentation)) throw new Error('presentation required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
   this.application = application;
   this.presentation = presentation;
-  this.startCallback = callBack;
+  this.startcallback = callback;
 };
-Interface.prototype.stop = function (callBack) {
-  if (typeof callBack != 'function') throw new Error('callBack required');
+Interface.prototype.stop = function (callback) {
+  if (typeof callback != 'function') throw new Error('callback required');
 };
 Interface.prototype.dispatch = function (request, response) {
   if (false === (request instanceof Request)) throw new Error('Request required');
   if (response && typeof response != 'function') throw new Error('response callback is not a function');
   if (!this.application || !this.application.dispatch(request)) {
-    if (this.startCallback) {
-      this.startCallback(request);
+    if (this.startcallback) {
+      this.startcallback(request);
     }
   }
 };
 Interface.prototype.notify = function (message) {
   if (false === (message instanceof Message)) throw new Error('Message required');
 };
-Interface.prototype.render = function (presentation, callBack) {
+Interface.prototype.render = function (presentation, presentationMode, callback) {
   if (false === (presentation instanceof Presentation)) throw new Error('Presentation object required');
-  if (callBack && typeof callBack != 'function') throw new Error('optional second argument must a commandRequest callback function');
+  if (typeof presentationMode !== 'string') throw new Error('presentationMode required');
+  if (!contains(Command.getPresentationModes(), presentationMode)) throw new Error('Invalid presentationMode: ' + presentationMode);
+  if (callback && typeof callback != 'function') throw new Error('optional second argument must a commandRequest callback function');
 };
 Interface.prototype.info = function (text) {
   if (!text || typeof text !== 'string') throw new Error('text required');
 };
-Interface.prototype.ok = function (prompt, callBack) {
+Interface.prototype.ok = function (prompt, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
   if (this.okPending) {
     delete this.okPending;
-    callBack();
+    callback();
   } else {
-    this.okCallBack = callBack;
+    this.okcallback = callback;
   }
 };
-Interface.prototype.yesno = function (prompt, callBack) {
+Interface.prototype.yesno = function (prompt, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
   if (this.yesnoPending) {
     delete this.yesnoPending;
-    callBack(this.yesnoResponse);
+    callback(this.yesnoResponse);
   } else {
-    this.yesnoCallBack = callBack;
+    this.yesnocallback = callback;
   }
 };
-Interface.prototype.ask = function (prompt, attribute, callBack) {
+Interface.prototype.ask = function (prompt, attribute, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (false === (attribute instanceof Attribute)) throw new Error('instance of Attribute a required parameter');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (false === (attribute instanceof Attribute)) throw new Error('attribute or callback expected');
+  if (typeof callback != 'function') throw new Error('callback required');
   if (this.askPending) {
     delete this.askPending;
-    callBack(this.askResponse);
+    callback(this.askResponse);
   } else {
-    this.askCallBack = callBack;
+    this.askcallback = callback;
   }
 };
-Interface.prototype.choose = function (prompt, choices, callBack) {
+Interface.prototype.choose = function (prompt, choices, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
   if (false === (choices instanceof Array)) throw new Error('choices array required');
   if (!choices.length) throw new Error('choices array empty');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
   if (this.choosePending) {
     delete this.choosePending;
-    callBack(Interface.firstMatch(this.chooseResponse, choices));
+    callback(Interface.firstMatch(this.chooseResponse, choices));
   } else {
-    this.chooseCallBack = callBack;
+    this.choosecallback = callback;
     this.chooseChoices = choices;
   }
 };
@@ -830,7 +856,7 @@ Interface.prototype.choose = function (prompt, choices, callBack) {
  */
 Interface.firstMatch = function (s, a) { // find first partial match with s in array a
   if (undefined === s)
-  return undefined;
+    return undefined;
   for (var i = 0; i < a.length; i++) {
     var obj = a[i].toLowerCase();
     if (left(obj, s.length) == s.toLowerCase())
@@ -1022,11 +1048,11 @@ Model.prototype.set = function (attribute, value) {
   }
   throw new Error('attribute not valid for model');
 };
-Model.prototype.validate = function (callBack) {
+Model.prototype.validate = function (callback) {
   var model = this;
   var i, e;
   var validationsPending = 0; // track callbacks sent
-  if (typeof callBack != 'function') throw new Error('callback is required');
+  if (typeof callback != 'function') throw new Error('callback is required');
   // First check object state
   model.getObjectStateErrors();
   for (e in model._errorConditions) {
@@ -1038,7 +1064,7 @@ Model.prototype.validate = function (callBack) {
   if (model.validationErrors.length) {
     model.validationMessage = model.validationErrors.length > 0 ? model.validationErrors[0] : '';
     model._emitEvent('StateChange');
-    callBack.call(model);
+    callback.call(model);
     return;
   }
 
@@ -1061,7 +1087,7 @@ Model.prototype.validate = function (callBack) {
             // Finally done here!
             model.validationMessage = model.validationErrors.length > 0 ? model.validationErrors[0] : '';
             model._emitEvent('StateChange');
-            callBack.call(model);
+            callback.call(model);
           }
         });
       }, 0);
@@ -1072,7 +1098,7 @@ Model.prototype.validate = function (callBack) {
 //  // All done...
 //  this.validationMessage = this.validationErrors.length > 0 ? this.validationErrors[0] : '';
 //  this._emitEvent('StateChange');
-//  callBack.call(this);
+//  callback.call(this);
 
 };
 Model.prototype.onEvent = function (events, callback) {
@@ -1092,13 +1118,13 @@ Model.prototype.onEvent = function (events, callback) {
   this._eventListeners.push({events: events, callback: callback});
   return this;
 };
-Model.prototype._emitEvent = function (event) {
+Model.prototype._emitEvent = function (event, meta) { // todo meta is app defined - no test for it
   var i;
   for (i in this._eventListeners) {
     if (this._eventListeners.hasOwnProperty(i)) {
       var subscriber = this._eventListeners[i];
       if ((subscriber.events.length && subscriber.events[0] === '*') || contains(subscriber.events, event)) {
-        subscriber.callback.call(this, event);
+        subscriber.callback.call(this, event, meta);
       }
     }
   }
@@ -1304,10 +1330,10 @@ Store.prototype.toString = function () {
 Store.prototype.getServices = function () {
   return this.storeProperty;
 };
-Store.prototype.onConnect = function (location, callBack) {
+Store.prototype.onConnect = function (location, callback) {
   if (typeof location != 'string') throw new Error('argument must a url string');
-  if (typeof callBack != 'function') throw new Error('argument must a callback');
-  callBack(this, undefined);
+  if (typeof callback != 'function') throw new Error('argument must a callback');
+  callback(this, undefined);
 };
 Store.prototype.getModel = function () {
   throw new Error(this.storeType + ' does not provide getModel');
@@ -1326,10 +1352,10 @@ Store.prototype.getList = function () {
  * tgi-core/lib/core/tgi-core-transport.source.js
  */
 /* istanbul ignore next */
-function Transport(location, callBack) {
+function Transport(location, callback) {
   if (false === (this instanceof Transport)) throw new Error('new operator required');
   if (typeof location != 'string') throw new Error('argument must a url string');
-  if (typeof callBack != 'function') throw new Error('argument must a callback');
+  if (typeof callback != 'function') throw new Error('argument must a callback');
   var self = this;
   self.connected = false;
   self.initialConnect = true;
@@ -1340,7 +1366,7 @@ function Transport(location, callBack) {
     self.connected = true;
     self.initialConnect = false;
     console.log('socket.io (' + self.location + ') connected');
-    callBack.call(self, new Message('Connected', ''));
+    callback.call(self, new Message('Connected', ''));
   });
   self.socket.on('connecting', function () {
     console.log('socket.io (' + self.location + ') connecting');
@@ -1350,7 +1376,7 @@ function Transport(location, callBack) {
     console.error(theError);
     // If have not ever connected then signal error
     if (self.initialConnect) {
-      callBack.call(self, new Message('Error', theError));
+      callback.call(self, new Message('Error', theError));
     }
   });
   self.socket.on('connect_error', function (reason) {
@@ -1358,7 +1384,7 @@ function Transport(location, callBack) {
     console.error(theError);
     // If have not ever connected then signal error
     if (self.initialConnect) {
-      callBack.call(self, new Message('Error', theError));
+      callback.call(self, new Message('Error', theError));
     }
   });
   self.socket.on('connect_failed', function (reason) {
@@ -1366,7 +1392,7 @@ function Transport(location, callBack) {
     console.error(theError);
     // If have not ever connected then signal error
     if (self.initialConnect) {
-      callBack.call(self, new Message('Error', theError));
+      callback.call(self, new Message('Error', theError));
     }
   });
   self.socket.on('message', function (obj) {
@@ -1397,18 +1423,18 @@ Transport.hostMessageProcess = function (obj, fn) {
  * Methods
  */
 /* istanbul ignore next */
-Transport.prototype.send = function (message, callBack) {
+Transport.prototype.send = function (message, callback) {
   var self = this;
   if (typeof message == 'undefined') throw new Error('message required');
   if (!(message instanceof Message)) throw new Error('parameter must be instance of Message');
-  if (typeof callBack != 'undefined' && typeof callBack != 'function') throw new Error('argument must a callback');
+  if (typeof callback != 'undefined' && typeof callback != 'function') throw new Error('argument must a callback');
   if (!this.connected) {
-    callBack.call(self, new Message('Error', 'not connected'));
+    callback.call(self, new Message('Error', 'not connected'));
     return;
   }
-  if (typeof callBack != 'undefined') {
+  if (typeof callback != 'undefined') {
     self.socket.emit('ackmessage', message, function (msg) {
-      callBack.call(self, msg);
+      callback.call(self, msg);
     });
   } else {
     self.socket.send(message);
@@ -1441,10 +1467,11 @@ var REPLInterface = function (args) {
     throw new Error('error creating Interface: multiple errors');
   if (errorList.length) throw new Error('error creating Interface: ' + errorList[0]);
   // default state
-  this.startCallback = null;
-  this.stopCallback = null;
+  this.startcallback = null;
+  this.stopcallback = null;
   this.mocks = [];
   this.mockPending = false;
+  this.navStack = [];
   // args ok, now copy to object
   for (i in args) this[i] = args[i];
 };
@@ -1459,7 +1486,7 @@ REPLInterface.prototype.canMock = function () {
   return true;
 };
 REPLInterface.prototype.doMock = function () {
-  var callBack;
+  var callback, result;
   // If no more elements then we are done
   this.mockPending = false;
   if (this.mocks.length < 1)
@@ -1467,31 +1494,42 @@ REPLInterface.prototype.doMock = function () {
   // Get oldest ele and pass to callback if it is set
   var thisMock = this.mocks.shift();
   if (thisMock.type == 'ok') {
-    if (this.okCallBack) {
-      callBack = this.okCallBack;
-      delete this.okCallBack;
-      callBack();
+    if (this.okcallback) {
+      callback = this.okcallback;
+      delete this.okcallback;
+      callback();
     } else {
       this.okPending = true;
     }
     return;
   }
-  if (thisMock.type == 'yes' || thisMock.type == 'no') {
-    if (this.yesnoCallBack) {
-      callBack = this.yesnoCallBack;
-      delete this.yesnoCallBack;
-      callBack(thisMock.type == 'yes');
+  if (thisMock.type == 'yes' || thisMock.type == 'no' || thisMock.type == 'cancel') {
+    switch (thisMock.type) {
+      case 'yes':
+        result = true;
+        break;
+      case 'no':
+        result = false;
+        break;
+      case 'cancel':
+        result = undefined;
+        break;
+    }
+    if (this.yesnocallback) {
+      callback = this.yesnocallback;
+      delete this.yesnocallback;
+      callback(result);
     } else {
       this.yesnoPending = true;
-      this.yesnoResponse = (thisMock.type == 'yes');
+      this.yesnoResponse = result;
     }
     return;
   }
   if (thisMock.type == 'ask') {
-    if (this.askCallBack) {
-      callBack = this.askCallBack;
-      delete this.askCallBack;
-      callBack(thisMock.value);
+    if (this.askcallback) {
+      callback = this.askcallback;
+      delete this.askcallback;
+      callback(thisMock.value);
     } else {
       this.askPending = true;
       this.askResponse = thisMock.value;
@@ -1499,10 +1537,10 @@ REPLInterface.prototype.doMock = function () {
     return;
   }
   if (thisMock.type == 'choose') {
-    if (this.chooseCallBack) {
-      callBack = this.chooseCallBack;
-      delete this.chooseCallBack;
-      callBack(Interface.firstMatch(thisMock.value, this.chooseChoices));
+    if (this.choosecallback) {
+      callback = this.choosecallback;
+      delete this.choosecallback;
+      callback(Interface.firstMatch(thisMock.value, this.chooseChoices));
     } else {
       this.choosePending = true;
       this.chooseResponse = thisMock.value;
@@ -1533,98 +1571,126 @@ REPLInterface.prototype.mockRequest = function (args) {
     this.doMock();
   }
 };
-REPLInterface.prototype.start = function (application, presentation, callBack) {
+REPLInterface.prototype.start = function (application, presentation, callback) {
   if (!(application instanceof Application)) throw new Error('Application required');
   if (!(presentation instanceof Presentation)) throw new Error('presentation required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
   this.application = application;
   this.presentation = presentation;
-  this.startCallback = callBack;
+  this.startcallback = callback;
+  this.evaluateInput(); // to trigger first prompt
 };
-REPLInterface.prototype.stop = function (callBack) {
-  if (typeof callBack != 'function') throw new Error('callBack required');
+REPLInterface.prototype.stop = function (callback) {
+  if (typeof callback != 'function') throw new Error('callback required');
 };
 REPLInterface.prototype.dispatch = function (request, response) {
   if (false === (request instanceof Request)) throw new Error('Request required');
   if (response && typeof response != 'function') throw new Error('response callback is not a function');
   if (!this.application || !this.application.dispatch(request)) {
-    if (this.startCallback) {
-      this.startCallback(request);
+    if (this.startcallback) {
+      this.startcallback(request);
     }
   }
 };
 REPLInterface.prototype.notify = function (message) {
   if (false === (message instanceof Message)) throw new Error('Message required');
-  if (this.captureOutputCallback) {
-    this.captureOutputCallback(message);
-  }
+  this._Output(message);
 };
-REPLInterface.prototype.render = function (presentation, callBack) {
+REPLInterface.prototype.render = function (presentation, presentationMode, callback) {
   if (false === (presentation instanceof Presentation)) throw new Error('Presentation object required');
-  if (callBack && typeof callBack != 'function') throw new Error('optional second argument must a commandRequest callback function');
+  if (typeof presentationMode !== 'string') throw new Error('presentationMode required');
+  if (!contains(Command.getPresentationModes(), presentationMode)) throw new Error('Invalid presentationMode: ' + presentationMode);
+  if (callback && typeof callback != 'function') throw new Error('optional second argument must a commandRequest callback function');
+  var contents = presentation.get('contents');
+  var i;
+  var width = 0;
+  var obj;
+  switch (presentationMode) {
+    case 'View':
+      for (i = 0; i < contents.length; i++)
+        if (contents[i] instanceof Attribute && contents[i].label.length > width)
+          width = contents[i].label.length;
+      for (i = 0; i < contents.length; i++) {
+        obj = contents[i];
+        if (obj instanceof Attribute) {
+          this._Output(lpad(obj.label, width) + ': ' + obj.value);
+        } else {
+          this._Output(obj);
+        }
+      }
+      break;
+    case 'Edit':
+      this.editPresentationContents = contents.slice();
+      while (this.editPresentationContents.length && !(this.editPresentationContents[0] instanceof Attribute)) {
+        var ele = this.editPresentationContents.shift();
+        if (!(ele instanceof Command))
+          this._Output(ele);
+      }
+      if (this.editPresentationContents.length && (this.editPresentationContents[0] instanceof Attribute))
+        this._setPrompt(this.editPresentationContents[0].label + ': ');
+      if (!this.editPresentationContents.length) delete this.editPresentationContents;
+
+      break;
+    default:
+      throw new Error('presentationMode not handled: ' + presentationMode);
+  }
 };
 REPLInterface.prototype.info = function (text) {
   if (!text || typeof text !== 'string') throw new Error('text required');
-  if (this.captureOutputCallback) {
-    this.captureOutputCallback(text);
-  }
+  this._Output(text);
 };
-REPLInterface.prototype.ok = function (prompt, callBack) {
+REPLInterface.prototype.ok = function (prompt, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  if (this.captureOutputCallback) {
-    this.captureOutputCallback(prompt);
-  }
+  if (typeof callback != 'function') throw new Error('callback required');
+  this._Output(prompt);
   if (this.okPending) {
     delete this.okPending;
-    callBack();
+    callback();
   } else {
-    this.okCallBack = callBack;
+    this.okcallback = callback;
   }
 };
-REPLInterface.prototype.yesno = function (prompt, callBack) {
+REPLInterface.prototype.yesno = function (prompt, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  if (this.captureOutputCallback) {
-    this.captureOutputCallback(prompt);
-  }
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.yesnoPrompt = prompt;
+  this._setPrompt(this.yesnoPrompt);
   if (this.yesnoPending) {
     delete this.yesnoPending;
-    callBack(this.yesnoResponse);
+    callback(this.yesnoResponse);
   } else {
-    this.yesnoCallBack = callBack;
+    this.yesnocallback = callback;
   }
 };
-REPLInterface.prototype.ask = function (prompt, attribute, callBack) {
+REPLInterface.prototype.ask = function (prompt, attribute, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (false === (attribute instanceof Attribute)) throw new Error('instance of Attribute a required parameter');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  if (this.captureOutputCallback) {
-    this.captureOutputCallback(prompt);
-  }
+  if (false === (attribute instanceof Attribute)) throw new Error('attribute or callback expected');
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.askPrompt = prompt;
+  this._setPrompt(prompt);
   if (this.askPending) {
     delete this.askPending;
-    callBack(this.askResponse);
+    callback(this.askResponse);
   } else {
-    this.askCallBack = callBack;
+    this.askcallback = callback;
   }
 };
-REPLInterface.prototype.choose = function (prompt, choices, callBack) {
+REPLInterface.prototype.choose = function (prompt, choices, callback) {
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
   if (false === (choices instanceof Array)) throw new Error('choices array required');
   if (!choices.length) throw new Error('choices array empty');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  if (this.captureOutputCallback) {
-    this.captureOutputCallback(prompt);
-    for (var i = 0; i < choices.length; i++) {
-      this.captureOutputCallback('  ' + choices[i]);
-    }
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.choosePrompt = prompt;
+  this._Output(prompt);
+  for (var i = 0; i < choices.length; i++) {
+    this._Output('  ' + choices[i]);
   }
+  this._setPrompt('Choice? ');
   if (this.choosePending) {
     delete this.choosePending;
-    callBack(Interface.firstMatch(this.chooseResponse, choices));
+    callback(Interface.firstMatch(this.chooseResponse, choices));
   } else {
-    this.chooseCallBack = callBack;
+    this.choosecallback = callback;
     this.chooseChoices = choices;
   }
 };
@@ -1632,67 +1698,190 @@ REPLInterface.prototype.choose = function (prompt, choices, callBack) {
  * Additional Methods
  */
 REPLInterface.prototype.evaluateInput = function (line) {
-  var callBack;
+  var self = this;
+  if (undefined === line) line = '';
+  this._evaluateInput(line);
+  setTimeout(function () {
+    var prompt = self.application ? self.application.get('brand') : '?';
+    if (!self.promptText && self.application && self.application.primaryInterface) {
+      self._ShowNav();
+    }
+    if (self.promptText) {
+      prompt = self.promptText;
+      delete self.promptText;
+    }
+    if (self.capturePromptcallback)
+      self.capturePromptcallback(prompt);
+  }, 10);
+};
+REPLInterface.prototype._evaluateInput = function (line) {
+  var callback;
   var uLine = ('' + line).toUpperCase();
+  var i;
+  var ele;
   /**
    * First priority for input capture - user queries
    */
-  if (this.okCallBack) {
-    callBack = this.okCallBack;
-    delete this.okCallBack;
-    callBack();
+  if (this.okcallback) {
+    callback = this.okcallback;
+    delete this.okcallback;
+    callback();
     return;
   }
-  if (this.yesnoCallBack) {
-    callBack = this.yesnoCallBack;
-    delete this.yesnoCallBack;
-    callBack(uLine == 'Y' || uLine == 'YES');
+  if (this.yesnocallback) {
+    if (uLine == 'Y' || uLine == 'YES') {
+      callback = this.yesnocallback;
+      delete this.yesnocallback;
+      callback(true);
+      return;
+    } else if (uLine == 'N' || uLine == 'NO') {
+      callback = this.yesnocallback;
+      delete this.yesnocallback;
+      callback(false);
+      return;
+    } else if (line.length === 0) {
+      callback = this.yesnocallback;
+      delete this.yesnocallback;
+      callback();
+      return;
+    }
+    this._Output('yes or no response required');
+    this._setPrompt(this.yesnoPrompt);
     return;
   }
-  if (this.askCallBack) {
-    callBack = this.askCallBack;
-    delete this.askCallBack;
-    callBack(line);
+  if (this.askcallback) {
+    callback = this.askcallback;
+    delete this.askcallback;
+    callback(line);
     return;
   }
-  if (this.chooseCallBack) {
-    callBack = this.chooseCallBack;
-    delete this.chooseCallBack;
-    callBack(Interface.firstMatch(line, this.chooseChoices));
+  if (this.choosecallback) {
+    callback = this.choosecallback;
+    var match = Interface.firstMatch(line, this.chooseChoices);
+    if (match) {
+      delete this.choosecallback;
+      callback(match);
+    } else {
+      if (line.length > 0) {
+        this.application.info('"' + line + '" not valid');
+        this._Output(this.choosePrompt);
+        for (i = 0; i < this.chooseChoices.length; i++)
+          this._Output('  ' + this.chooseChoices[i]);
+        this._setPrompt('Choice? ');
+      } else {
+        delete this.choosecallback;
+        callback();
+      }
+    }
+    return;
+  }
+  /**
+   * Edit Presentation in progress ?
+   */
+  if (this.editPresentationContents) {
+    if (this.editPresentationContents.length && (this.editPresentationContents[0] instanceof Attribute)) {
+      ele = this.editPresentationContents.shift();
+      if (line.length)
+        ele.value = line;
+    }
+    else {
+      if (!this.editPresentationContents.length) delete this.editPresentationContents;
+      throw new Error('editPresentationContents expected attribute');
+    }
+    while (this.editPresentationContents.length && !(this.editPresentationContents[0] instanceof Attribute)) {
+      ele = this.editPresentationContents.shift();
+      if (!(ele instanceof Command))
+        this._Output(ele);
+    }
+    if (this.editPresentationContents.length && (this.editPresentationContents[0] instanceof Attribute))
+      this._setPrompt(this.editPresentationContents[0].label + ': ');
+
+    if (!this.editPresentationContents.length) delete this.editPresentationContents;
     return;
   }
   /**
    * Do we have a primary navigation?
    */
-  if (this.presentation && line.length) {
+  if (this.presentation) {
     var menu = this.presentation.get('contents');
-    var commands = '';
-    for (var i = 0; i < menu.length; i++) {
+    if (this.navStack.length > 0) {
+      var subMenu = this.navStack[this.navStack.length - 1];
+      menu = subMenu.contents;
+    }
+    for (i = 0; i < menu.length; i++) {
       var m = menu[i];
       if (m instanceof Command) {
         var name = m.name.toUpperCase();
-        if (left(name, uLine.length) == uLine) {
-          m.execute();
+        if (line.length && left(name, uLine.length) == uLine) {
+          switch (m.type) {
+            case 'Stub':
+              this.info(m.description + ' not available.');
+              break;
+            case 'Menu':
+              this.navStack.push(m);
+              break;
+            case 'Presentation':
+              m.presentationMode = 'Edit';
+              m.execute(this);
+              break;
+            default:
+              m.execute();
+              break;
+          }
           return;
         }
-        commands += ( ' ' + m.name );
       }
     }
-    if (this.captureOutputCallback) {
-      this.captureOutputCallback('unrecognized: ' + line);
-      this.captureOutputCallback('valid commands: ' + commands);
+    if (line.length > 0) {
+      this.application.info('"' + line + '" not valid');
+    } else {
+      this.navStack.pop();
     }
     return;
   }
   /**
    * This should never get this far ...
    */
-  if (this.captureOutputCallback) this.captureOutputCallback('input ignored: ' + line);
+  this._Output('input ignored: ' + line);
+};
+REPLInterface.prototype._ShowNav = function () {
+  var brand = this.application ? this.application.get('brand') : '?';
+  var menu = this.presentation.get('contents');
+  var menuName = '';
+  var commands = '';
+  var prefix = '';
+  var i;
+  if (this.navStack.length > 0) {
+    var subMenu = this.navStack[this.navStack.length - 1];
+    menuName = subMenu.name.replace(/\s/g, '') + ': ';
+    menu = subMenu.contents;
+    for (i = 0; i < this.navStack.length; i++) {
+      brand += ' / ' + this.navStack[i].name.replace(/\s/g, '');
+    }
+  }
+  for (i = 0; i < menu.length; i++) {
+    var m = menu[i];
+    if (m instanceof Command) {
+      commands += ( prefix + m.name.replace(/\s/g, '') );
+      prefix = ', ';
+    }
+  }
+  this.application.info(menuName + commands);
+  this._setPrompt(brand + '>');
 };
 REPLInterface.prototype.captureOutput = function (callback) {
-  this.captureOutputCallback = callback;
+  this.captureOutputcallback = callback;
 };
-
+REPLInterface.prototype.capturePrompt = function (callback) {
+  this.capturePromptcallback = callback;
+};
+REPLInterface.prototype._setPrompt = function (text) {
+  this.promptText = text;
+};
+REPLInterface.prototype._Output = function (text) {
+  if (this.captureOutputcallback)
+    this.captureOutputcallback(text);
+};
 /**---------------------------------------------------------------------------------------------------------------------
  * tgi-core-model-application.source.js
  */
@@ -1715,26 +1904,26 @@ var Application = function (args) {
   }
   Model.call(this, args);
   this.modelType = "Application";
-  this.set('name','newApp');
-  this.set('brand','NEW APP');
+  this.set('name', 'newApp');
+  this.set('brand', 'NEW APP');
 };
 Application.prototype = Object.create(Model.prototype);
 
 /**
  * Methods
  */
-Application.prototype.start = function (callBack) {
+Application.prototype.start = function (callback) {
   if (false === (this.primaryInterface instanceof Interface)) throw new Error('error starting application: interface not set');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
   var self = this;
-  this.startCallback = callBack;
+  this.startcallback = callback;
   if (!this.presentation) this.presentation = new Presentation();
   this.primaryInterface.start(self, this.presentation, function (request) {
-    if (request.type=='Command') {
+    if (request.type == 'Command') {
       request.command.execute();
     } else {
-      if (self.startCallback) {
-        self.startCallback(request);
+      if (self.startcallback) {
+        self.startcallback(request);
       }
     }
   });
@@ -1747,8 +1936,8 @@ Application.prototype.dispatch = function (request, response) {
     request.command.execute();
     return true;
   } else {
-    if (this.startCallback) {
-      this.startCallback(request);
+    if (this.startcallback) {
+      this.startcallback(request);
       return true;
     }
   }
@@ -1764,7 +1953,7 @@ Application.prototype.getInterface = function () {
 Application.prototype.setPresentation = function (presentation) {
   if (false === (presentation instanceof Presentation)) throw new Error('instance of Presentation a required parameter');
   this.presentation = presentation;
-  //if (this.startCallback) { TODO WTF
+  //if (this.startcallback) { TODO WTF
   //  // Interface started so reload
   //  this.primaryInterface.setPresentation(this.presentation);
   //}
@@ -1777,32 +1966,36 @@ Application.prototype.info = function (text) {
   if (!text || typeof text !== 'string') throw new Error('text parameter required');
   this.primaryInterface.info(text);
 };
-Application.prototype.ok = function (prompt, callBack) {
+Application.prototype.ok = function (prompt, callback) {
   if (false === (this.primaryInterface instanceof Interface)) throw new Error('interface not set');
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  this.primaryInterface.ok(prompt, callBack);
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.primaryInterface.ok(prompt, callback);
 };
-Application.prototype.yesno = function (prompt, callBack) {
+Application.prototype.yesno = function (prompt, callback) {
   if (false === (this.primaryInterface instanceof Interface)) throw new Error('interface not set');
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  this.primaryInterface.yesno(prompt, callBack);
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.primaryInterface.yesno(prompt, callback);
 };
-Application.prototype.ask = function (prompt, attribute, callBack) {
+Application.prototype.ask = function (prompt, attribute, callback) {
   if (false === (this.primaryInterface instanceof Interface)) throw new Error('interface not set');
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
-  if (false === (attribute instanceof Attribute)) throw new Error('instance of Attribute a required parameter');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  this.primaryInterface.ask(prompt, attribute, callBack);
+  if (typeof attribute == 'function') {
+    this.primaryInterface.ask(prompt, new Attribute({name: 'default'}), attribute);
+    return;
+  }
+  if (false === (attribute instanceof Attribute)) throw new Error('attribute or callback expected');
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.primaryInterface.ask(prompt, attribute, callback);
 };
-Application.prototype.choose = function (prompt, choices, callBack) {
+Application.prototype.choose = function (prompt, choices, callback) {
   if (false === (this.primaryInterface instanceof Interface)) throw new Error('interface not set');
   if (!prompt || typeof prompt !== 'string') throw new Error('prompt required');
   if (false === (choices instanceof Array)) throw new Error('choices array required');
   if (!choices.length) throw new Error('choices array empty');
-  if (typeof callBack != 'function') throw new Error('callBack required');
-  this.primaryInterface.choose(prompt, choices, callBack);
+  if (typeof callback != 'function') throw new Error('callback required');
+  this.primaryInterface.choose(prompt, choices, callback);
 };
 
 /**---------------------------------------------------------------------------------------------------------------------
@@ -1852,8 +2045,7 @@ Log.prototype.toString = function () {
 };
 
 /**
- * tequila
- * presentation-model
+ * lib/models/tgi-core-model-presentation.source.js
  */
 // Model Constructor
 var Presentation = function (args) {
@@ -1892,9 +2084,9 @@ Presentation.prototype.getObjectStateErrors = function (modelCheckOnly) {
   this.validationMessage = this.validationErrors.length > 0 ? this.validationErrors[0] : '';
   return this.validationErrors;
 };
-Presentation.prototype.validate = function (callBack) {
+Presentation.prototype.validate = function (callback) {
   var presentation = this;
-  if (typeof callBack != 'function') throw new Error('callback is required');
+  if (typeof callback != 'function') throw new Error('callback is required');
   this.getObjectStateErrors();
   var e;
   for (e in this._errorConditions) {
@@ -1931,7 +2123,7 @@ Presentation.prototype.validate = function (callBack) {
       if (gotError)
         presentation.validationErrors.push('contents has validation errors');
       presentation.validationMessage = presentation.validationErrors.length > 0 ? presentation.validationErrors[0] : '';
-      callBack();
+      callback();
     }
   }
 };
@@ -1962,23 +2154,23 @@ Session.prototype = Object.create(Model.prototype);
 /*
  * Methods
  */
-Session.prototype.startSession = function (store, userName, password, ip, callBack) {
+Session.prototype.startSession = function (store, userName, password, ip, callback) {
   if (false === (store instanceof Store)) throw new Error('store required');
   if (typeof userName !== 'string') throw new Error('userName required');
   if (typeof password !== 'string') throw new Error('password required');
   if (typeof ip !== 'string') throw new Error('ip required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
 
   // Find user in store
   var self = this;
   var userModel = new User();
   store.getList(new List(userModel), {name: userName, password: password}, function (list, error) {
     if (error) {
-      callBack(error);
+      callback(error);
       return;
     }
     if (list.length() != 1) {
-      callBack(new Error('login not found'));
+      callback(new Error('login not found'));
       return;
     }
 
@@ -1996,25 +2188,25 @@ Session.prototype.startSession = function (store, userName, password, ip, callBa
     self.set('passCode', passCode);
     self.set('ipAddress', ip);
     store.putModel(self, function (model, error) {
-      callBack(error, model);
+      callback(error, model);
     });
   });
 };
-Session.prototype.resumeSession = function (store, ip, passCode, callBack) {
+Session.prototype.resumeSession = function (store, ip, passCode, callback) {
   if (false === (store instanceof Store)) throw new Error('store required');
   if (typeof ip !== 'string') throw new Error('ip required');
   if (typeof passCode !== 'string') throw new Error('passCode required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
 
   // Find the session in store
   var self = this;
   store.getList(new List(self), {ipAddress: ip, passCode: passCode}, function (list, error) {
     if (error) {
-      callBack(error);
+      callback(error);
       return;
     }
     if (list.length() != 1) {
-      callBack(new Error('session not resumed'));
+      callback(new Error('session not resumed'));
       return;
     }
 
@@ -2026,22 +2218,22 @@ Session.prototype.resumeSession = function (store, ip, passCode, callBack) {
     self.set('passCode', list.get('passCode'));
     self.set('active', list.get('active'));
     self.set('ipAddress', list.get('ipAddress'));
-    callBack(error, self);
+    callback(error, self);
   });
 
 };
-Session.prototype.endSession = function (store, callBack) {
+Session.prototype.endSession = function (store, callback) {
   if (false === (store instanceof Store)) throw new Error('store required');
-  if (typeof callBack != 'function') throw new Error('callBack required');
+  if (typeof callback != 'function') throw new Error('callback required');
 
   // If no session ID (never persisted) or is not active then silently return
   if (!this.get('active') || !this.get('id')) {
-    callBack(this);
+    callback(this);
   }
   // Mark inactive and save to store
   this.set('active', false);
   store.putModel(this, function (model, err) {
-    callBack(err, model);
+    callback(err, model);
   });
 };
 /**
@@ -2119,17 +2311,17 @@ var MemoryStore = function (args) {
 };
 MemoryStore.prototype = Object.create(Store.prototype);
 // Methods
-MemoryStore.prototype.getModel = function (model, callBack) {
+MemoryStore.prototype.getModel = function (model, callback) {
   var i, a;
   if (!(model instanceof Model)) throw new Error('argument must be a Model');
   if (model.getObjectStateErrors().length) throw new Error('model has validation errors');
   if (!model.attributes[0].value) throw new Error('ID not set');
-  if (typeof callBack != "function") throw new Error('callBack required');
+  if (typeof callback != "function") throw new Error('callback required');
   // Find model in memorystore, error out if can't find
   var modelIndex = -1;
   for (i = 0; i < this.data.length; i++) if (this.data[i][0] == model.modelType) modelIndex = i;
   if (modelIndex < 0) {
-    callBack(model, new Error('model not found in store'));
+    callback(model, new Error('model not found in store'));
     return;
   }
   // Find the ID now and put in instanceIndex
@@ -2138,7 +2330,7 @@ MemoryStore.prototype.getModel = function (model, callBack) {
   var instanceIndex = -1;
   for (i = 0; instanceIndex < 0 && i < storedPair.length; i++) if (storedPair[i][0] == id) instanceIndex = i;
   if (instanceIndex < 0) {
-    callBack(model, new Error('id not found in store'));
+    callback(model, new Error('id not found in store'));
     return;
   }
   // Copy values from store to ref model
@@ -2146,21 +2338,21 @@ MemoryStore.prototype.getModel = function (model, callBack) {
   for (a in model.attributes) {
     model.attributes[a].value = storeValues[model.attributes[a].name];
   }
-  callBack(model, undefined);
+  callback(model, undefined);
 };
-MemoryStore.prototype.putModel = function (model, callBack) {
+MemoryStore.prototype.putModel = function (model, callback) {
   var i, a, id, modelIndex, ModelValues, theName, theValue;
 
   if (!(model instanceof Model)) throw new Error('argument must be a Model');
   if (model.getObjectStateErrors().length) throw new Error('model has validation errors');
-  if (typeof callBack != "function") throw new Error('callBack required');
+  if (typeof callback != "function") throw new Error('callback required');
   id = model.get('ID');
   if (id) {
     // Find model in memorystore, error out if can't find
     modelIndex = -1;
     for (i = 0; i < this.data.length; i++) if (this.data[i][0] == model.modelType) modelIndex = i;
     if (modelIndex < 0) {
-      callBack(model, new Error('model not found in store'));
+      callback(model, new Error('model not found in store'));
       return;
     }
     // Find the ID now
@@ -2169,7 +2361,7 @@ MemoryStore.prototype.putModel = function (model, callBack) {
     var storedPair = this.data[modelIndex][1];
     for (i = 0; instanceIndex < 0 && i < storedPair.length; i++) if (storedPair[i][0] == id) instanceIndex = i;
     if (instanceIndex < 0) {
-      callBack(model, new Error('id not found in store'));
+      callback(model, new Error('id not found in store'));
       return;
     }
     // Copy from store
@@ -2180,7 +2372,7 @@ MemoryStore.prototype.putModel = function (model, callBack) {
       ModelValues[theName] = theValue;
     }
     storedPair[instanceIndex][1] = ModelValues;
-    callBack(model, undefined);
+    callback(model, undefined);
   } else {
     // Find model in memorystore, add if not found
     modelIndex = -1;
@@ -2199,20 +2391,20 @@ MemoryStore.prototype.putModel = function (model, callBack) {
       ModelValues[theName] = theValue;
     }
     this.data[modelIndex][1].push([newID, ModelValues]);
-    callBack(model, undefined);
+    callback(model, undefined);
   }
 
 };
-MemoryStore.prototype.deleteModel = function (model, callBack) {
+MemoryStore.prototype.deleteModel = function (model, callback) {
   var i, a;
   if (!(model instanceof Model)) throw new Error('argument must be a Model');
   if (model.getObjectStateErrors().length) throw new Error('model has validation errors');
-  if (typeof callBack != "function") throw new Error('callBack required');
+  if (typeof callback != "function") throw new Error('callback required');
   // Find model in memorystore, error out if can't find
   var modelIndex = -1;
   for (i = 0; i < this.data.length; i++) if (this.data[i][0] == model.modelType) modelIndex = i;
   if (modelIndex < 0) {
-    callBack(model, new Error('model not found in store'));
+    callback(model, new Error('model not found in store'));
     return;
   }
   // Find the ID now
@@ -2221,7 +2413,7 @@ MemoryStore.prototype.deleteModel = function (model, callBack) {
   var storedPair = this.data[modelIndex][1];
   for (i = 0; instanceIndex < 0 && i < storedPair.length; i++) if (storedPair[i][0] == id) instanceIndex = i;
   if (instanceIndex < 0) {
-    callBack(model, new Error('id not found in store'));
+    callback(model, new Error('id not found in store'));
     return;
   }
   // Splice out the stored values then prepare that Model for callback with ID stripped
@@ -2232,24 +2424,24 @@ MemoryStore.prototype.deleteModel = function (model, callBack) {
     else
       model.attributes[a].value = storeValues[model.attributes[a].name];
   }
-  callBack(model, undefined);
+  callback(model, undefined);
 };
 MemoryStore.prototype.getList = function (list, filter, arg3, arg4) {
-  var callBack, order, i;
+  var callback, order, i;
   if (typeof(arg4) == 'function') {
-    callBack = arg4;
+    callback = arg4;
     order = arg3;
   } else {
-    callBack = arg3;
+    callback = arg3;
   }
   if (!(list instanceof List)) throw new Error('argument must be a List');
   if (!(filter instanceof Object)) throw new Error('filter argument must be Object');
-  if (typeof callBack != "function") throw new Error('callBack required');
+  if (typeof callback != "function") throw new Error('callback required');
   // Find model in memorystore, error out if can't find
   var modelIndex = -1;
   for (i = 0; i < this.data.length; i++) if (this.data[i][0] == list.model.modelType) modelIndex = i;
   if (modelIndex < 0) {
-    callBack(list);
+    callback(list);
     return;
   }
   list.clear();
@@ -2279,7 +2471,7 @@ MemoryStore.prototype.getList = function (list, filter, arg3, arg4) {
     list.sort(order);
   }
 //  console.log(JSON.stringify(list,null,2));
-  callBack(list);
+  callback(list);
 };
 
 /**---------------------------------------------------------------------------------------------------------------------
@@ -2484,24 +2676,34 @@ Framework7Interface.prototype.start = function (application, presentation, callB
   if (this.presentation.get('contents').length)
     this.htmlNavigation();
   this.htmlViews();
-
-
-//this.renderNavBar();
-//this.renderPages();   // Content based on toolbar selected
-//this.renderToolBar(); // Changes pages when icon selected
-
-// f7 thingy
-//this.f7mainView = this.f7.addView('.view-main', {
-//  dynamicNavbar: true
-//});
-
-// put toolbar back when on main index view
-//this.f7.onPageBeforeAnimation('index', function (page) {
-//  self.f7mainView.showToolbar();
-//});
-
-
 };
+Framework7Interface.prototype.dispatch = function (request, response) {
+  if (false === (request instanceof Request)) throw new Error('Request required');
+  if (response && typeof response != 'function') throw new Error('response callback is not a function');
+  var requestHandled = false;
+  try {
+    if (this.application) {
+      if (request.type == 'Command' && request.command.type == 'Presentation') {
+        console.log('framework7Interface.showView');
+        framework7Interface.showView(request.command);
+        // this.activatePanel(request.command);
+
+        requestHandled = true;
+      } else {
+        requestHandled = !this.application.dispatch(request);
+      }
+    }
+    if (!requestHandled && this.startcallback) {
+      this.startcallback(request);
+    }
+  } catch (e) {
+    if (this.startcallback) {
+      this.startcallback(e);
+    }
+  }
+};
+
+
 /**
  * DOM helper
  */
@@ -2574,7 +2776,7 @@ Framework7Interface.prototype.refreshToolbar = function () {
   if (framework7Interface.toolBar.clientWidth > 768) baseIconWidth = 112;
   if (framework7Interface.toolBar.clientWidth) iconMaxFit = Math.floor(framework7Interface.toolBar.clientWidth / baseIconWidth);
   var needMore = (menuCount > iconMaxFit);
-  var iconsToShow = needMore ? iconMaxFit : menuCount;
+  var iconsToShow = needMore ? iconMaxFit-1 : menuCount;
   var iconsShowing = 0;
   /**
    * todo Need to track what is shown for when "more..." page rendered
@@ -2582,13 +2784,19 @@ Framework7Interface.prototype.refreshToolbar = function () {
   /**
    * create each toolbar link
    */
+  var moreMenu = [];
   for (menuItem in menuContents)
     if (menuContents.hasOwnProperty(menuItem) && typeof menuContents[menuItem] != 'string') {
-      addLink(menuContents[menuItem]);
-      if (++iconsShowing >= iconsToShow) break;
+      if (iconsShowing < iconsToShow) {
+        iconsShowing++;
+        addLink(menuContents[menuItem]);
+      } else {
+        moreMenu.push(menuContents[menuItem]);
+      }
     }
-  if (needMore)
-    addLink(new Command({name: 'more', icon: 'fa-ellipsis-h'}));
+  if (needMore) {
+    addLink(new Command({name: 'more', icon: 'fa-ellipsis-h', type: 'Menu', contents: moreMenu}));
+  }
 
 
   function addLink(item) {
@@ -2612,11 +2820,15 @@ Framework7Interface.prototype.refreshToolbar = function () {
 
   function executeLink(toolBarCommand) {
     var command = toolBarCommand.command;
+    command._toolBarCommand = toolBarCommand;
     switch (command.type) {
       case 'Procedure':
         command.execute();
         break;
       case 'Menu':
+        framework7Interface.showView(toolBarCommand);
+        break;
+      case 'Presentation':
         framework7Interface.showView(toolBarCommand);
         break;
       case 'Stub':
@@ -2801,7 +3013,7 @@ Framework7Interface.prototype.htmlViews = function () {
   var starterPage = addEle(framework7Interface.tabs, 'div', 'tab active', {id: 'starterPage'});
   addEle(starterPage, 'div', 'content-block-title').innerHTML = framework7Interface.application.get('brand');
   framework7Interface.tempLog = addEle(starterPage, 'div', 'content-block');
-  framework7Interface.tempLog.innerHTML = 'Touch the icons below to explore!';
+  framework7Interface.tempLog.innerHTML = 'Touch the icons below to explore!'; // todo app overide generic nature of this
 };
 Framework7Interface.prototype.showView = function (toolBarCommand) {
   var framework7Interface = this;
@@ -2817,6 +3029,9 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
       case 'Menu':
         createMenuView(toolBarCommand.command.contents);
         break;
+      case 'Presentation':
+        createPresentationView(toolBarCommand.command.contents);
+        break;
       default:
         addEle(toolBarCommand.primaryView, 'div', 'content-block-title').innerHTML = toolBarCommand.command.name;
         toolBarCommand.primaryViewBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block');
@@ -2825,11 +3040,116 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
     }
   }
   /**
+   * Create presentation view
+   */
+  function createPresentationView(presentation) {
+    console.log('createPresentationView: ' + presentation);
+    var contents = presentation.get('contents');
+    var contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block-presentation');
+    //contentBlock.innerHTML = JSON.stringify(contents);
+    var i;
+    var buttonRow, buttonsInRow=0;
+    for (i = 0; i < contents.length; i++) {
+      // String markdown or separator '-'
+      if (typeof contents[i] == 'string') {
+        if (contents[i] == '-') {
+          addEle(contentBlock,'HR');
+          // panel.panelForm.appendChild(document.createElement("hr"));
+        } else {
+          var txtDiv = addEle(contentBlock,'div');
+          txtDiv.innerHTML = marked(contents[i]);
+          //panel.panelForm.appendChild(txtDiv);
+        }
+      }
+      //if (contents[i] instanceof Attribute) renderAttribute(contents[i]);
+      if (contents[i] instanceof Command) {
+        //contents[i]._toolBarCommand = toolBarCommand;
+        renderCommand(contents[i]);
+      }
+
+    }
+    /**
+     * function to render Attribute
+     */
+    function renderAttribute(attribute) {
+
+    }
+    /**
+     * function to render Command
+     */
+    function renderCommand(commandButton) {
+
+      var icon = commandButton.icon;
+      var className = commandButton.theme || 'default';
+      if (className == 'default')
+        className = 'default-presentation';
+
+      if (!icon) {
+        switch (commandButton.type) {
+          case "Menu":
+            icon = 'fa-th-large';
+            break;
+          case "Presentation":
+            icon = 'fa-building';
+            break;
+          case "Function":
+            icon = 'fa-gear';
+            break;
+          case "Procedure":
+            icon = 'fa-gears';
+            break;
+          default:
+            icon = 'fa-square-o';
+            break;
+        }
+      }
+      if (!buttonRow) {
+        buttonRow = addEle(contentBlock,'div','row button-row');
+      }
+      var buttonCol = addEle(buttonRow,'div','col-50');
+      var buttonAnchor  = addEle(buttonCol,'a','button tq-pres-button button-' + className);
+      buttonAnchor.innerHTML = '<i class="fa ' + icon + '">&nbsp</i>' + commandButton.name;
+      if (++buttonsInRow >=  2) {
+        buttonRow = undefined;
+      }
+      $$(buttonAnchor).on('click', function (event) {
+        console.log('click fuck');
+        executeLink(commandButton._toolBarCommand);
+        event.preventDefault();
+      });
+      // panel.listeners.push(button); // so we can avoid leakage on deleting panel
+
+      function executeLink(toolBarCommand) {
+        command = toolBarCommand.command;
+        switch (command.type) {
+          case 'Menu':
+            framework7Interface.showView(toolBarCommand);
+            break;
+          case 'Presentation':
+            framework7Interface.showView(toolBarCommand);
+            break;
+          case 'Function':
+          case 'Procedure':
+            command.execute();
+            break;
+          case 'Stub':
+            framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
+            });
+            break;
+          default:
+            framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+            });
+            break;
+        }
+      }
+
+    }
+  }
+  /**
    * Create menu views
    */
   function createMenuView(menu) {
-    var contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block');
-    var listBlock = addEle(contentBlock, 'div', 'list-block');
+    var listBlock = addEle(toolBarCommand.primaryView, 'div', 'list-block');
     for (var i = 0; i < menu.length; i++) {
       var item = menu[i];
       var ul = addEle(listBlock, 'ul');
@@ -2861,6 +3181,7 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
         });
       }
     }
+
     function executeLink(toolBarCommand) { // BROKEN - NOT
       var command = toolBarCommand.command;
       switch (command.type) {
