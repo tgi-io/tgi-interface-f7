@@ -47,6 +47,14 @@ hr {
     border-bottom: 1px solid #f5f5fa;
 }
 
+.no-select {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
 .button-row + .button-row {
     margin-top: 12px; /* When buttons stack add gap for additional rows x*/
 }

@@ -10,7 +10,7 @@ var root = this;
 var TGI = {
   CORE: function () {
     return {
-      version: '0.3.5',
+      version: '0.3.8',
       Application: Application,
       Attribute: Attribute,
       Command: Command,
@@ -484,7 +484,7 @@ Command.prototype._emitEvent = function (event, obj) {
 };
 Command.prototype.execute = function (context) {
   if (!this.type) throw new Error('command not implemented');
-  if (!contains(['Function', 'Procedure', 'Presentation'], this.type)) throw new Error('command type ' + this.type + ' not implemented');
+  if (!contains(['Function', 'Procedure', 'Menu', 'Presentation'], this.type)) throw new Error('command type ' + this.type + ' not implemented');
   var errors;
   switch (this.type) {
     case 'Presentation':
@@ -509,6 +509,9 @@ Command.prototype.execute = function (context) {
         break;
       case 'Procedure':
         setTimeout(procedureExecuteInit, 0);
+        break;
+      case 'Menu':
+        context.render(this, 'View');
         break;
       case 'Presentation':
         context.render(this.contents, this.presentationMode);
@@ -2687,7 +2690,6 @@ Framework7Interface.prototype.dispatch = function (request, response) {
         console.log('framework7Interface.showView');
         framework7Interface.showView(request.command);
         // this.activatePanel(request.command);
-
         requestHandled = true;
       } else {
         requestHandled = !this.application.dispatch(request);
@@ -2701,6 +2703,28 @@ Framework7Interface.prototype.dispatch = function (request, response) {
       this.startcallback(e);
     }
   }
+};
+Framework7Interface.prototype.render = function (item, presentationMode, callback) {
+  var framework7Interface = this;
+  var presentation = item;
+  //if (false === (presentation instanceof Presentation)) throw new Error('Presentation object required');
+  //if (typeof presentationMode !== 'string') throw new Error('presentationMode required');
+  //if (!contains(Command.getPresentationModes(), presentationMode)) throw new Error('Invalid presentationMode: ' + presentationMode);
+  //if (callback && typeof callback != 'function') throw new Error('optional second argument must a commandRequest callback function');
+
+  if (item instanceof Command)
+    presentation = item.contents;
+
+  console.log('render ' + presentation);
+
+
+  for (var i = 0; i < framework7Interface.toolBarCommands.length; i++) {
+    var toolBarLink = framework7Interface.toolBarCommands[i];
+    if (toolBarLink.command.contents === presentation)
+      framework7Interface.showView(toolBarLink);
+  }
+
+
 };
 
 
@@ -2748,9 +2772,9 @@ Framework7Interface.prototype.htmlNavigation = function () {
    */
   this.toolBar = addEle(this.viewMain, 'div', 'toolbar tabbar tabbar-labels', {id: 'toolBar'});
   this.toolBarInner = addEle(this.toolBar, 'div', 'toolbar-inner', {id: 'toolBarInner'});
-  this.refreshToolbar();
+  this.refreshNavigation();
 };
-Framework7Interface.prototype.refreshToolbar = function () {
+Framework7Interface.prototype.refreshNavigation = function () {
   var framework7Interface = this;
   var addEle = Framework7Interface.addEle;
   var $$ = Dom7;
@@ -2779,13 +2803,10 @@ Framework7Interface.prototype.refreshToolbar = function () {
   var iconsToShow = needMore ? iconMaxFit-1 : menuCount;
   var iconsShowing = 0;
   /**
-   * todo Need to track what is shown for when "more..." page rendered
-   */
-  /**
-   * create each toolbar link
+   * create each toolbar link - add to more... if no room
    */
   var moreMenu = [];
-  for (menuItem in menuContents)
+  for (menuItem in menuContents) {
     if (menuContents.hasOwnProperty(menuItem) && typeof menuContents[menuItem] != 'string') {
       if (iconsShowing < iconsToShow) {
         iconsShowing++;
@@ -2794,11 +2815,10 @@ Framework7Interface.prototype.refreshToolbar = function () {
         moreMenu.push(menuContents[menuItem]);
       }
     }
+  }
   if (needMore) {
     addLink(new Command({name: 'more', icon: 'fa-ellipsis-h', type: 'Menu', contents: moreMenu}));
   }
-
-
   function addLink(item) {
     var link = {
       command: item,
@@ -2812,37 +2832,37 @@ Framework7Interface.prototype.refreshToolbar = function () {
     link.domElement = addEle(framework7Interface.toolBarInner, 'a', 'tab-link', {id: link.id, href: '#'});
     link.domElement.innerHTML = '<i class="fa ' + (item.icon || 'fa-circle-thin') + ' fa-lg"></i><span class="tabbar-label">' + item.name + '</span>';
     $$('#' + link.id).on('click', function () {
-      var htmlID = $$(this).attr('id');
-      var toolBarCommandNo = parseInt(right(htmlID, htmlID.length - 6)) - 1;
-      executeLink(framework7Interface.toolBarCommands[toolBarCommandNo]);
+      //var htmlID = $$(this).attr('id');
+      //var toolBarCommandNo = parseInt(right(htmlID, htmlID.length - 6)) - 1;
+      //executeLink(framework7Interface.toolBarCommands[toolBarCommandNo]);
+      //executeLink(link);
+      console.log('shizzle');
+      link.command.execute(framework7Interface);
     });
   }
-
-  function executeLink(toolBarCommand) {
-    var command = toolBarCommand.command;
-    command._toolBarCommand = toolBarCommand;
-    switch (command.type) {
-      case 'Procedure':
-        command.execute();
-        break;
-      case 'Menu':
-        framework7Interface.showView(toolBarCommand);
-        break;
-      case 'Presentation':
-        framework7Interface.showView(toolBarCommand);
-        break;
-      case 'Stub':
-        framework7Interface.application.ok('This feature is not available.', function () {
-        });
-        break;
-      default:
-        framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-        });
-        break;
-    }
-  }
-
-
+  //function executeLink(toolBarCommand) {
+  //  var command = toolBarCommand.command;
+  //  command._toolBarCommand = toolBarCommand;
+  //  switch (command.type) {
+  //    case 'Procedure':
+  //      command.execute();
+  //      break;
+  //    case 'Menu':
+  //      framework7Interface.showView(toolBarCommand);
+  //      break;
+  //    case 'Presentation':
+  //      framework7Interface.showView(toolBarCommand);
+  //      break;
+  //    case 'Stub':
+  //      framework7Interface.application.ok('This feature is not available.', function () {
+  //      });
+  //      break;
+  //    default:
+  //      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+  //      });
+  //      break;
+  //  }
+  //}
 };
 Framework7Interface.prototype.highlightToolBarCommand = function (toolBarCommand) {
   var $$ = Dom7;
@@ -3048,15 +3068,15 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
     var contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block-presentation');
     //contentBlock.innerHTML = JSON.stringify(contents);
     var i;
-    var buttonRow, buttonsInRow=0;
+    var buttonRow, buttonsInRow = 0;
     for (i = 0; i < contents.length; i++) {
       // String markdown or separator '-'
       if (typeof contents[i] == 'string') {
         if (contents[i] == '-') {
-          addEle(contentBlock,'HR');
+          addEle(contentBlock, 'HR');
           // panel.panelForm.appendChild(document.createElement("hr"));
         } else {
-          var txtDiv = addEle(contentBlock,'div');
+          var txtDiv = addEle(contentBlock, 'div');
           txtDiv.innerHTML = marked(contents[i]);
           //panel.panelForm.appendChild(txtDiv);
         }
@@ -3074,6 +3094,7 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
     function renderAttribute(attribute) {
 
     }
+
     /**
      * function to render Command
      */
@@ -3104,47 +3125,46 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
         }
       }
       if (!buttonRow) {
-        buttonRow = addEle(contentBlock,'div','row button-row');
+        buttonRow = addEle(contentBlock, 'div', 'row button-row');
       }
-      var buttonCol = addEle(buttonRow,'div','col-50');
-      var buttonAnchor  = addEle(buttonCol,'a','button tq-pres-button button-' + className);
+      var buttonCol = addEle(buttonRow, 'div', 'col-50');
+      var buttonAnchor = addEle(buttonCol, 'a', 'button no-select button-' + className);
       buttonAnchor.innerHTML = '<i class="fa ' + icon + '">&nbsp</i>' + commandButton.name;
-      if (++buttonsInRow >=  2) {
+      if (++buttonsInRow >= 2) {
         buttonRow = undefined;
       }
       $$(buttonAnchor).on('click', function (event) {
-        console.log('click fuck');
-        executeLink(commandButton._toolBarCommand);
+        commandButton.execute(framework7Interface);
+        //executeLink(commandButton);
         event.preventDefault();
       });
       // panel.listeners.push(button); // so we can avoid leakage on deleting panel
 
-      function executeLink(toolBarCommand) {
-        command = toolBarCommand.command;
-        switch (command.type) {
-          case 'Menu':
-            framework7Interface.showView(toolBarCommand);
-            break;
-          case 'Presentation':
-            framework7Interface.showView(toolBarCommand);
-            break;
-          case 'Function':
-          case 'Procedure':
-            command.execute();
-            break;
-          case 'Stub':
-            framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
-            });
-            break;
-          default:
-            framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-            });
-            break;
-        }
-      }
-
+      //function executeLink(command) {
+      //  switch (command.type) {
+      //    case 'Menu':
+      //      framework7Interface.showView(command._toolBarCommand);
+      //      break;
+      //    case 'Presentation':
+      //      framework7Interface.showView(command._toolBarCommand);
+      //      break;
+      //    case 'Function':
+      //    case 'Procedure':
+      //      command.execute();
+      //      break;
+      //    case 'Stub':
+      //      framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
+      //      });
+      //      break;
+      //    default:
+      //      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+      //      });
+      //      break;
+      //  }
+      //}
     }
   }
+
   /**
    * Create menu views
    */

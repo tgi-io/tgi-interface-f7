@@ -56,6 +56,15 @@ var infoCommand = new tgi.Command({
   icon: 'fa-info',
   contents: infoPresentation
 });
+var gotItCommand = new tgi.Command({
+  name: 'GotIt',
+  type: 'Function',
+  theme: 'danger',
+  icon: 'fa-thumbs-up',
+  contents: function(){
+    app.info('OK, I got it!');
+  }
+});
 
 /**
  * Command only
@@ -69,7 +78,7 @@ commandPresentation.set('contents', [
   beerCommand,
   '###Note',
   'Commands are all grouped and rendered at bottom of panel',
-  new tgi.Command()
+  gotItCommand
 
 ]);
 var commandCommand = new tgi.Command({
@@ -121,7 +130,13 @@ nav.set('contents', [
   infoCommand,
   beerCommand,
   commandCommand,
-  attributeCommand
+  attributeCommand,
+  defaultCommand,
+  defaultCommand,
+  defaultCommand,
+  defaultCommand,
+  defaultCommand,
+  defaultCommand
 ]);
 
 /**
