@@ -2707,26 +2707,42 @@ Framework7Interface.prototype.dispatch = function (request, response) {
 Framework7Interface.prototype.render = function (item, presentationMode, callback) {
   var framework7Interface = this;
   var presentation = item;
-  //if (false === (presentation instanceof Presentation)) throw new Error('Presentation object required');
-  //if (typeof presentationMode !== 'string') throw new Error('presentationMode required');
-  //if (!contains(Command.getPresentationModes(), presentationMode)) throw new Error('Invalid presentationMode: ' + presentationMode);
-  //if (callback && typeof callback != 'function') throw new Error('optional second argument must a commandRequest callback function');
-
-  if (item instanceof Command)
-    presentation = item.contents;
-
+  /* todo broke tests :(
+  if (false === (presentation instanceof Presentation)) throw new Error('Presentation object required');
+  if (typeof presentationMode !== 'string') throw new Error('presentationMode required');
+  if (!contains(Command.getPresentationModes(), presentationMode)) throw new Error('Invalid presentationMode: ' + presentationMode);
+  if (callback && typeof callback != 'function') throw new Error('optional second argument must a commandRequest callback function');
+*/
   console.log('render ' + presentation);
-
-
+  if (item instanceof Command) {
+    presentation = item.contents;
+    console.log('render presentation ' + presentation);
+  }
+  /**
+   * find the presentation on the toolbar first
+   */
   for (var i = 0; i < framework7Interface.toolBarCommands.length; i++) {
     var toolBarLink = framework7Interface.toolBarCommands[i];
-    if (toolBarLink.command.contents === presentation)
+    if (toolBarLink.command.contents === presentation) {
+      console.log('showView ' + toolBarLink);
       framework7Interface.showView(toolBarLink);
+      return;
+    }
   }
-
+  /**
+   * Now look in more menu
+   */
+  for (i = 0; i < framework7Interface.toolBarMoreCommands.length; i++) {
+    toolBarLink = framework7Interface.toolBarMoreCommands[i];
+    if (toolBarLink.command.contents === presentation) {
+      console.log('more showView ' + toolBarLink);
+      framework7Interface.showView(toolBarLink);
+      return;
+    }
+  }
+//framework7Interface.toolBarMoreCommands = [];
 
 };
-
 
 /**
  * DOM helper
@@ -2752,8 +2768,8 @@ Framework7Interface.prototype.htmlNavigation = function () {
    * Main View
    */
   document.body.innerHTML = '' +
-  '<div class="statusbar-overlay"></div>' + // Status bar overlay for full screen mode (PhoneGap)
-  '<div class="panel-overlay"></div>'; // Panels overlay
+    '<div class="statusbar-overlay"></div>' + // Status bar overlay for full screen mode (PhoneGap)
+    '<div class="panel-overlay"></div>'; // Panels overlay
   this.views = addEle(document.body, 'div', 'views', {id: 'views'});// F7 Views Div
   this.viewMain = addEle(this.views, 'div', 'view view-main', {id: 'viewMain'});// Tell F7 this is the main view
   /**
@@ -2783,6 +2799,7 @@ Framework7Interface.prototype.refreshNavigation = function () {
    */
   framework7Interface.toolBarInner.innerHTML = '';
   framework7Interface.toolBarCommands = [];
+  framework7Interface.toolBarMoreCommands = [];
   /**
    * Prep main menu
    */
@@ -2800,7 +2817,7 @@ Framework7Interface.prototype.refreshNavigation = function () {
   if (framework7Interface.toolBar.clientWidth > 768) baseIconWidth = 112;
   if (framework7Interface.toolBar.clientWidth) iconMaxFit = Math.floor(framework7Interface.toolBar.clientWidth / baseIconWidth);
   var needMore = (menuCount > iconMaxFit);
-  var iconsToShow = needMore ? iconMaxFit-1 : menuCount;
+  var iconsToShow = needMore ? iconMaxFit - 1 : menuCount;
   var iconsShowing = 0;
   /**
    * create each toolbar link - add to more... if no room
@@ -2813,6 +2830,14 @@ Framework7Interface.prototype.refreshNavigation = function () {
         addLink(menuContents[menuItem]);
       } else {
         moreMenu.push(menuContents[menuItem]);
+        var link = {
+          command: menuContents[menuItem],
+          domElement: null,
+          id: null, // id for domElement so we can find in DOM
+          primaryView: null, // views are lazy created
+          subMenu: [] // if needed for nested menus
+        };
+        framework7Interface.toolBarMoreCommands.push(link);
       }
     }
   }
@@ -2840,30 +2865,32 @@ Framework7Interface.prototype.refreshNavigation = function () {
       link.command.execute(framework7Interface);
     });
   }
-  //function executeLink(toolBarCommand) {
-  //  var command = toolBarCommand.command;
-  //  command._toolBarCommand = toolBarCommand;
-  //  switch (command.type) {
-  //    case 'Procedure':
-  //      command.execute();
-  //      break;
-  //    case 'Menu':
-  //      framework7Interface.showView(toolBarCommand);
-  //      break;
-  //    case 'Presentation':
-  //      framework7Interface.showView(toolBarCommand);
-  //      break;
-  //    case 'Stub':
-  //      framework7Interface.application.ok('This feature is not available.', function () {
-  //      });
-  //      break;
-  //    default:
-  //      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-  //      });
-  //      break;
-  //  }
-  //}
-};
+
+//function executeLink(toolBarCommand) {
+//  var command = toolBarCommand.command;
+//  command._toolBarCommand = toolBarCommand;
+//  switch (command.type) {
+//    case 'Procedure':
+//      command.execute();
+//      break;
+//    case 'Menu':
+//      framework7Interface.showView(toolBarCommand);
+//      break;
+//    case 'Presentation':
+//      framework7Interface.showView(toolBarCommand);
+//      break;
+//    case 'Stub':
+//      framework7Interface.application.ok('This feature is not available.', function () {
+//      });
+//      break;
+//    default:
+//      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+//      });
+//      break;
+//  }
+//}
+}
+;
 Framework7Interface.prototype.highlightToolBarCommand = function (toolBarCommand) {
   var $$ = Dom7;
   for (var i = 0; i < this.toolBarCommands.length; i++) {
@@ -3135,33 +3162,8 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
       }
       $$(buttonAnchor).on('click', function (event) {
         commandButton.execute(framework7Interface);
-        //executeLink(commandButton);
         event.preventDefault();
       });
-      // panel.listeners.push(button); // so we can avoid leakage on deleting panel
-
-      //function executeLink(command) {
-      //  switch (command.type) {
-      //    case 'Menu':
-      //      framework7Interface.showView(command._toolBarCommand);
-      //      break;
-      //    case 'Presentation':
-      //      framework7Interface.showView(command._toolBarCommand);
-      //      break;
-      //    case 'Function':
-      //    case 'Procedure':
-      //      command.execute();
-      //      break;
-      //    case 'Stub':
-      //      framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
-      //      });
-      //      break;
-      //    default:
-      //      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-      //      });
-      //      break;
-      //  }
-      //}
     }
   }
 
@@ -3197,28 +3199,31 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
           var rootID = left(htmlID, dash - 1);
           var toolBarCommandNo = parseInt(right(rootID, rootID.length - 6)) - 1;
           var subMenuNo = parseInt(right(htmlID, htmlID.length - dash)) - 1;
-          executeLink(framework7Interface.toolBarCommands[toolBarCommandNo].subMenu[subMenuNo]);
+          var dashizzle = framework7Interface.toolBarCommands[toolBarCommandNo].subMenu[subMenuNo];
+          dashizzle.command.execute(framework7Interface);
+          //console.log('dashizzle ' + dashizzle);
+          //executeLink(framework7Interface.toolBarCommands[toolBarCommandNo].subMenu[subMenuNo]);
         });
       }
     }
 
-    function executeLink(toolBarCommand) { // BROKEN - NOT
-      var command = toolBarCommand.command;
-      switch (command.type) {
-        case 'Function':
-        case 'Procedure':
-          command.execute();
-          break;
-        case 'Stub':
-          framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
-          });
-          break;
-        default:
-          framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-          });
-          break;
-      }
-    }
+    //function executeLink(toolBarCommand) {
+    //  var command = toolBarCommand.command;
+    //  switch (command.type) {
+    //    case 'Function':
+    //    case 'Procedure':
+    //      command.execute();
+    //      break;
+    //    case 'Stub':
+    //      framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
+    //      });
+    //      break;
+    //    default:
+    //      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
+    //      });
+    //      break;
+    //  }
+    //}
 
   }
 
