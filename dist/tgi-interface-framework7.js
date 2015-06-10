@@ -2687,7 +2687,6 @@ Framework7Interface.prototype.dispatch = function (request, response) {
   try {
     if (this.application) {
       if (request.type == 'Command' && request.command.type == 'Presentation') {
-        console.log('framework7Interface.showView');
         framework7Interface.showView(request.command);
         // this.activatePanel(request.command);
         requestHandled = true;
@@ -2713,10 +2712,8 @@ Framework7Interface.prototype.render = function (item, presentationMode, callbac
   if (!contains(Command.getPresentationModes(), presentationMode)) throw new Error('Invalid presentationMode: ' + presentationMode);
   if (callback && typeof callback != 'function') throw new Error('optional second argument must a commandRequest callback function');
 */
-  console.log('render ' + presentation);
   if (item instanceof Command) {
     presentation = item.contents;
-    console.log('render presentation ' + presentation);
   }
   /**
    * find the presentation on the toolbar first
@@ -2724,7 +2721,6 @@ Framework7Interface.prototype.render = function (item, presentationMode, callbac
   for (var i = 0; i < framework7Interface.toolBarCommands.length; i++) {
     var toolBarLink = framework7Interface.toolBarCommands[i];
     if (toolBarLink.command.contents === presentation) {
-      console.log('showView ' + toolBarLink);
       framework7Interface.showView(toolBarLink);
       return;
     }
@@ -2735,7 +2731,6 @@ Framework7Interface.prototype.render = function (item, presentationMode, callbac
   for (i = 0; i < framework7Interface.toolBarMoreCommands.length; i++) {
     toolBarLink = framework7Interface.toolBarMoreCommands[i];
     if (toolBarLink.command.contents === presentation) {
-      console.log('more showView ' + toolBarLink);
       framework7Interface.showView(toolBarLink);
       return;
     }
@@ -2857,40 +2852,10 @@ Framework7Interface.prototype.refreshNavigation = function () {
     link.domElement = addEle(framework7Interface.toolBarInner, 'a', 'tab-link', {id: link.id, href: '#'});
     link.domElement.innerHTML = '<i class="fa ' + (item.icon || 'fa-circle-thin') + ' fa-lg"></i><span class="tabbar-label">' + item.name + '</span>';
     $$('#' + link.id).on('click', function () {
-      //var htmlID = $$(this).attr('id');
-      //var toolBarCommandNo = parseInt(right(htmlID, htmlID.length - 6)) - 1;
-      //executeLink(framework7Interface.toolBarCommands[toolBarCommandNo]);
-      //executeLink(link);
-      console.log('shizzle');
       link.command.execute(framework7Interface);
     });
   }
-
-//function executeLink(toolBarCommand) {
-//  var command = toolBarCommand.command;
-//  command._toolBarCommand = toolBarCommand;
-//  switch (command.type) {
-//    case 'Procedure':
-//      command.execute();
-//      break;
-//    case 'Menu':
-//      framework7Interface.showView(toolBarCommand);
-//      break;
-//    case 'Presentation':
-//      framework7Interface.showView(toolBarCommand);
-//      break;
-//    case 'Stub':
-//      framework7Interface.application.ok('This feature is not available.', function () {
-//      });
-//      break;
-//    default:
-//      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-//      });
-//      break;
-//  }
-//}
-}
-;
+};
 Framework7Interface.prototype.highlightToolBarCommand = function (toolBarCommand) {
   var $$ = Dom7;
   for (var i = 0; i < this.toolBarCommands.length; i++) {
@@ -3090,28 +3055,28 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
    * Create presentation view
    */
   function createPresentationView(presentation) {
-    console.log('createPresentationView: ' + presentation);
     var contents = presentation.get('contents');
     var contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block-presentation');
-    //contentBlock.innerHTML = JSON.stringify(contents);
     var i;
     var buttonRow, buttonsInRow = 0;
+    var attributeUL;
     for (i = 0; i < contents.length; i++) {
       // String markdown or separator '-'
       if (typeof contents[i] == 'string') {
         if (contents[i] == '-') {
           addEle(contentBlock, 'HR');
-          // panel.panelForm.appendChild(document.createElement("hr"));
         } else {
           var txtDiv = addEle(contentBlock, 'div');
           txtDiv.innerHTML = marked(contents[i]);
-          //panel.panelForm.appendChild(txtDiv);
         }
       }
-      //if (contents[i] instanceof Attribute) renderAttribute(contents[i]);
       if (contents[i] instanceof Command) {
-        //contents[i]._toolBarCommand = toolBarCommand;
         renderCommand(contents[i]);
+      }
+      if (contents[i] instanceof Attribute) {
+        renderAttribute(contents[i]);
+      } else {
+        attributeUL = undefined;
       }
 
     }
@@ -3119,7 +3084,48 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
      * function to render Attribute
      */
     function renderAttribute(attribute) {
+      var i;
+      if (!attributeUL) {
+        attributeUL = addEle(addEle(contentBlock, 'div', 'list-block'), 'ul');
+      }
+      // Label
+      var item = addEle(addEle(attributeUL, 'div', 'item-content'), 'div', 'item-inner');
+      var label = addEle(item, 'div', 'item-title label');
+      label.innerHTML = attribute.label;
+      // Value
+      var inputAttributes = {type: 'text', value: attribute.value || ''};
+      if (attribute.hint.password)
+        inputAttributes.type = 'password';
+      if (attribute.placeHolder)
+        inputAttributes.placeholder = attribute.placeHolder;
 
+      var itemInput = addEle(item, 'div', 'item-input');
+      var input;
+      switch (attribute.type) {
+        case 'Boolean':
+          var labelSwitch = addEle(itemInput, 'label', 'label-switch');
+          inputAttributes.type = 'checkbox';
+          //inputAttributes.value = inputAttributes.value ? 'checked' : '';
+          input = addEle(labelSwitch, 'input', undefined, inputAttributes);
+          input.checked = inputAttributes.value;
+          addEle(labelSwitch, 'div', 'checkbox');
+          break;
+        case 'Date':
+          inputAttributes.type = 'date';
+          break;
+        case 'Number':
+          inputAttributes.type = 'number';
+          break;
+      }
+      if (attribute.quickPick) {
+        var items = '';
+        for (i = 0; i < attribute.quickPick.length; i++) {
+          items += '<option>' + attribute.quickPick[i] + '</option>';
+        }
+        itemInput.innerHTML = '<select>' + items + '</select>';
+      } else {
+        input = input || addEle(itemInput, 'input', undefined, inputAttributes);
+      }
     }
 
     /**
@@ -3158,6 +3164,7 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
       var buttonAnchor = addEle(buttonCol, 'a', 'button no-select button-' + className);
       buttonAnchor.innerHTML = '<i class="fa ' + icon + '">&nbsp</i>' + commandButton.name;
       if (++buttonsInRow >= 2) {
+        buttonsInRow = 0;
         buttonRow = undefined;
       }
       $$(buttonAnchor).on('click', function (event) {
@@ -3191,7 +3198,7 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
         var itemContent = addEle(link.domElement, 'div', 'item-content');
         var itemMedia = addEle(itemContent, 'div', 'item-media');
         var itemInner = addEle(itemContent, 'div', 'item-inner');
-        addEle(itemMedia, 'i', 'fa ' + (item.icon || 'fa-beer') + ' fa-lg');
+        addEle(itemMedia, 'i', 'fa ' + (item.icon || 'fa-circle-thin') + ' fa-lg');
         addEle(itemInner, 'div', 'item-title').innerHTML = item.name;
         $$('#' + link.id).on('click', function () {
           var htmlID = $$(this).attr('id');
@@ -3201,30 +3208,9 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
           var subMenuNo = parseInt(right(htmlID, htmlID.length - dash)) - 1;
           var dashizzle = framework7Interface.toolBarCommands[toolBarCommandNo].subMenu[subMenuNo];
           dashizzle.command.execute(framework7Interface);
-          //console.log('dashizzle ' + dashizzle);
-          //executeLink(framework7Interface.toolBarCommands[toolBarCommandNo].subMenu[subMenuNo]);
         });
       }
     }
-
-    //function executeLink(toolBarCommand) {
-    //  var command = toolBarCommand.command;
-    //  switch (command.type) {
-    //    case 'Function':
-    //    case 'Procedure':
-    //      command.execute();
-    //      break;
-    //    case 'Stub':
-    //      framework7Interface.application.ok('The ' + command.name + ' feature is not available.', function () {
-    //      });
-    //      break;
-    //    default:
-    //      framework7Interface.application.ok('Sorry can\'t handle that command type yet\n\n' + JSON.stringify(command.type), function () {
-    //      });
-    //      break;
-    //  }
-    //}
-
   }
 
   /**
@@ -3235,10 +3221,15 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
   framework7Interface.highlightToolBarCommand(toolBarCommand);
 };
 Framework7Interface.prototype.activateView = function (view) {
-  var $$ = Dom7;
+
+  var i, cmd, $$ = Dom7;
   $$('#starterPage').removeClass('active');
-  for (var i = 0; i < this.toolBarCommands.length; i++) {
-    var cmd = this.toolBarCommands[i];
+  for (i = 0; i < this.toolBarCommands.length; i++) {
+    cmd = this.toolBarCommands[i];
+    $$(cmd.primaryView).removeClass('active');
+  }
+  for (i = 0; i < this.toolBarMoreCommands.length; i++) {
+    cmd = this.toolBarMoreCommands[i];
     $$(cmd.primaryView).removeClass('active');
   }
   $$(view).addClass('active');

@@ -7,3 +7,4 @@ todo
 - make gupl build copy to dist like bootstrap
 - dump glyphicons - just use fa-... (propogate to core) _OR_ SUPPORT IT
 - fix text format for menus ex see html-play.html ex The Three Stooges
+- (see play/html-play-presentation.js attributeCommand.execute(f7);) ... remove need for f7 
