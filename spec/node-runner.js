@@ -7,7 +7,7 @@ var TGI = require('../dist/tgi-interface-framework7');
 var _package = require('../package');
 
 if (_package.version != TGI.INTERFACE.FRAMEWORK7().version) {
-  console.error('Library version %s does not match package.json %s',TGI.CORE().version,_package.version);
+  console.error('Library version %s does not match package.json %s',TGI.INTERFACE.FRAMEWORK7().version,_package.version);
   process.exit(1);
 }
 
@@ -16,7 +16,7 @@ testSpec(spec, TGI);
 spec.runTests(function (msg) {
   if (msg.error) {
     console.error(msg.error);
-    process.exit(1);
+    //process.exit(1);
   } else if (msg.done) {
     console.log(msg.testsCreated + ' tests passed.');
     if (msg.testsPending)
