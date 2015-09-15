@@ -4,7 +4,7 @@
 TGI.INTERFACE = TGI.INTERFACE || {};
 TGI.INTERFACE.FRAMEWORK7 = function () {
   return {
-    version: '0.0.2',
+    version: '0.0.3',
     Framework7Interface: Framework7Interface
   };
 };
@@ -443,7 +443,7 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
   function createPresentationView(presentation) {
     var contents = presentation.get('contents');
     var contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block-presentation');
-    var i;
+    var i, j;
     var buttonRow, buttonsInRow = 0;
     var attributeUL;
     for (i = 0; i < contents.length; i++) {
@@ -461,6 +461,8 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
       }
       if (contents[i] instanceof Attribute) {
         renderAttribute(contents[i]);
+      } else if (contents[i] instanceof List) {
+        renderList(contents[i], command.theme);
       } else {
         attributeUL = undefined;
       }
@@ -517,6 +519,53 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
     }
 
     /**
+     * function to render List
+     */
+
+    function renderList(list, theme) {
+
+      var listBlock = addEle(toolBarCommand.primaryView, 'div', 'list-block');
+      var ul = addEle(listBlock, 'ul');
+
+      /**
+       * Now each row in list
+       */
+      var gotData = list.moveFirst();
+      console.log('shit');
+      while (gotData) {
+        var title = '';
+        var subtitle = '';
+        var li = addEle(ul, 'li');
+        var anchor = addEle(li, 'a', 'item-link item-content', {href: '#'});
+        var ii = addEle(anchor, 'div', 'item-inner');
+        var idAttribute = list.model.attributes[0];
+
+        $$(anchor).data("id", list.get(idAttribute.name));
+
+        for (j = 1; j < list.model.attributes.length; j++) { // skip id (0))
+          var dAttribute = list.model.attributes[j];
+          if (j == 1)
+            title = list.get(dAttribute.name);
+          else
+            subtitle += ((subtitle.length ? ' ' : '') + list.get(dAttribute.name));
+        }
+        addEle(ii, 'div', 'item-title').innerHTML = title;
+        if (subtitle.length)
+          addEle(ii, 'div', 'item-subtitle').innerHTML = subtitle;
+
+        $$(anchor).on('click', function (e) {
+          //console.log('doh');
+          //framework7Interface.info('meh');
+          framework7Interface.info('you picked #' + $$(e.currentTarget).data("id"));
+        });
+
+        gotData = list.moveNext();
+      }
+      contentBlock = addEle(toolBarCommand.primaryView, 'div', 'content-block-presentation');
+    }
+
+
+    /**
      * function to render Command
      */
     function renderCommand(commandButton) {
@@ -549,7 +598,8 @@ Framework7Interface.prototype.showView = function (toolBarCommand) {
         buttonRow = addEle(contentBlock, 'div', 'row button-row');
       }
       var buttonCol = addEle(buttonRow, 'div', 'col-50');
-      var buttonAnchor = addEle(buttonCol, 'a', 'button no-select button-' + className);
+      var buttonAnchor = addEle(buttonCol, 'a', 'button no-select button-' + className, {href: '#'});
+
       buttonAnchor.innerHTML = '<i class="fa ' + icon + '">&nbsp</i>' + commandButton.name;
       if (++buttonsInRow >= 2) {
         buttonsInRow = 0;

@@ -9,7 +9,7 @@ var fs = require('fs');
 var _package = require('../package');
 
 if (_package.version != TGI.INTERFACE.FRAMEWORK7().version) {
-  console.error('Library version %s does not match package.json %s',TGI.CORE().version,_package.version);
+  console.error('Library version %s does not match package.json %s',TGI.INTERFACE.FRAMEWORK7().version,_package.version);
   process.exit(1);
 }
 
