@@ -2,14 +2,16 @@
  * tgi-interface-bootstrap/test/html-play.js
  **/
 var tgi = TGI.CORE();
-var f7 = new (TGI.INTERFACE.FRAMEWORK7().Framework7Interface)({vendor: Framework7});
-var app = new tgi.Application({interface: f7});
+var ui = new (TGI.INTERFACE.FRAMEWORK7().Framework7Interface)({vendor: Framework7});
+var app = new tgi.Application({interface: ui});
 var nav = new tgi.Presentation();
-app.setInterface(f7);
+app.setInterface(ui);
 app.set('brand', 'Presentation');
 app.setPresentation(nav);
 
 var i;
+var themes = ['default', 'primary', 'success', 'info', 'warning', 'danger'];
+
 
 /**
  * Default (Minimal) Presentation
@@ -44,7 +46,7 @@ var beerCommand = new tgi.Command({
  */
 var infoPresentation = new tgi.Presentation();
 infoPresentation.set('contents', [
-  '# Info',
+  'Info\n---',
   'This is themed `info` with an icon *(glyphicon-info-sign)*.',
   '-',
   'Note the divider above and below to understand _read the code Luke_',
@@ -55,27 +57,8 @@ var infoCommand = new tgi.Command({
   name: 'Info',
   type: 'Presentation',
   theme: 'info',
-  icon: 'fa-info',
+  icon: 'glyphicon-info-sign',
   contents: infoPresentation
-});
-var gotItCommand = new tgi.Command({
-  name: 'GotIt',
-  type: 'Function',
-  theme: 'danger',
-  icon: 'fa-thumbs-up',
-  contents: function () {
-    app.info('OK, I got it!');
-  }
-});
-
-var loginCommand = new tgi.Command({
-  name: 'Login',
-  type: 'Function',
-  theme: 'info',
-  icon: 'fa-sign-in',
-  contents: function () {
-    app.info('This is a fake button.');
-  }
 });
 
 /**
@@ -88,10 +71,9 @@ commandPresentation.set('contents', [
   defaultCommand,
   infoCommand,
   beerCommand,
-  loginCommand,
   '### Note',
   'Commands are all grouped and rendered at bottom of panel',
-  gotItCommand
+  new tgi.Command()
 
 ]);
 var commandCommand = new tgi.Command({
@@ -102,34 +84,78 @@ var commandCommand = new tgi.Command({
   contents: commandPresentation
 });
 
-
 /**
- * Attribute (Minimal) Presentation
+ * Attribute Presentation
  */
 var attributePresentation = new tgi.Presentation();
+var drinks = ['Water', 'Coke', 'Coffee'];
+
+var firstName = new tgi.Attribute({name: 'firstName', label: 'First Name', type: 'String(20)', value: 'John'});
+var lastName = new tgi.Attribute({name: 'lastName', label: 'Last Name', type: 'String(25)', value: 'Doe'});
+var birthday = new tgi.Attribute({name: 'birthDate', label: 'Birth Date', type: 'Date', value: new Date()});
+var drink = new tgi.Attribute({name: 'drink',type: 'String(25)',quickPick: drinks,validationRule: {isOneOf: drinks}});
+var sex = new tgi.Attribute({name: 'sex', type: 'Boolean', value: true});
+var drugs = new tgi.Attribute({name: 'drugs', type: 'Boolean', value: false});
+var iq = new tgi.Attribute({name: 'IQ', type: 'Number', value: 1, validationRule: {range: [90, 160]}});
+var attributeText = new tgi.Text('');
+var viewEditCommand;
 attributePresentation.set('contents', [
-  '### INSTRUCTIONS\nEnter some stuff then push some buttons.',
-  '-',
-  new tgi.Attribute({name: 'firstName', label: 'First Name', type: 'String(20)', value: 'John'}),
-  new tgi.Attribute({name: 'lastName', label: 'Last Name', type: 'String(25)', value: 'Doe'}),
-  new tgi.Attribute({name: 'address', label: 'Address', type: 'String(50)'}),
-  new tgi.Attribute({name: 'city', label: 'City', type: 'String(35)'}),
-  new tgi.Attribute({name: 'state', label: 'State', type: 'String(2)'}),
-  new tgi.Attribute({name: 'zip', label: 'Zip Code', type: 'String(10)', placeHolder: '#####-####'}),
-  '### More stuff',
-  new tgi.Attribute({name: 'password', label: 'Password', type: 'String(20)', hint: {password: true}}),
-  new tgi.Attribute({name: 'birthDate', label: 'Birth Date', type: 'Date', value: new Date()}),
-  new tgi.Attribute({name: 'drink', type: 'String(25)', quickPick: ['Water', 'Coke', 'Coffee']}),
-  new tgi.Attribute({name: 'sex', type: 'Boolean', value: true}),
-  new tgi.Attribute({name: 'drugs', type: 'Boolean', value: false}),
-  new tgi.Attribute({name: 'IQ', type: 'Number', value: 100}),
-  '-',
-  infoCommand,
-  beerCommand,
-  commandCommand,
-  defaultCommand
+  firstName,
+  lastName,
+  birthday,
+  drink,
+  sex,
+  drugs,
+  iq,
+  '>',
+  new tgi.Command({
+    name: 'validate',
+    type: 'Function', contents: function () {
+      attributePresentation.validate(function () {
+        if (attributePresentation.validationMessage) {
+          app.info('Please correct: ' + attributePresentation.validationMessage);
+        } else {
+          app.info('Good Job!!!');
+        }
+      });
+    }
+  }),
+  new tgi.Command({
+    name: '1st Prez', type: 'Function', contents: function () {
+      firstName.set('George');
+      lastName.set('Washington');
+      birthday.set(birthday.coerce('2/22/1732'));
+      iq.set(100);
+      sex.set(false);
+      drugs.set(true);
+    }
+  }),
+  new tgi.Command({
+    name: 'Show Attributes', type: 'Function', contents: function () {
+      var txt = '';
 
+      function showAttribute(attribute) {
+        txt += ('**' + attribute.name + '** ' + attribute.value + '\n\n');
+      }
 
+      showAttribute(firstName);
+      showAttribute(lastName);
+      showAttribute(birthday);
+      showAttribute(drink);
+      showAttribute(sex);
+      showAttribute(drugs);
+      showAttribute(iq);
+      attributeText.set(txt)
+    }
+  }),
+  viewEditCommand = new tgi.Command({
+    name: 'Edit', type: 'Function', contents: function () {
+      attributeCommand.presentationMode = viewEditCommand.name;
+      viewEditCommand.name = viewEditCommand.name=='Edit' ? 'View' : 'Edit';
+      attributeCommand.execute(ui);
+    }
+  }),
+  attributeText
 ]);
 var attributeCommand = new tgi.Command({
   name: 'Attribute',
@@ -138,6 +164,7 @@ var attributeCommand = new tgi.Command({
   icon: 'fa-list-alt',
   contents: attributePresentation
 });
+
 
 // Create actor class
 var Actor = function (args) {
@@ -183,38 +210,61 @@ for (i in actorsInfo) {
     actors.set('Sex', actorsInfo[i][2]);
   }
 }
+
 /**
  * List Presentation
  */
 var listPresentation = new tgi.Presentation();
-listPresentation.set('contents', ['# Lists', actors, defaultCommand,
+listPresentation.set('contents', ['Lists\n---', actors, defaultCommand,
   infoCommand,
   beerCommand
 ]);
 
+var listCommandContents = ['Select Theme', '-'];
+for (i = 0; i < themes.length; i++) {
+  var theme = themes[i];
+  listCommandContents.push(new tgi.Command({
+    name: theme + ' list',
+    type: 'Presentation',
+    theme: theme,
+    icon: 'fa-table',
+    contents: listPresentation
+  }));
+}
+
 var listCommand = new tgi.Command({
   name: 'list',
-  type: 'Presentation',
+  type: 'Menu',
   icon: 'fa-table',
-  contents: listPresentation
+  contents: listCommandContents
 });
 
 var loginPresentation = new tgi.Presentation();
-var storePicks = ['MemoryStore', 'LocalStore', 'HostStore'];
+var storePicks = ['HostStore', 'MemoryStore', 'LocalStore'];
+var login = new tgi.Attribute({
+  name: 'login',
+  label: 'Login',
+  type: 'String(20)',
+  validationRule: {required: true},
+  value: ''
+});
+
+var storeInfoText = new tgi.Text('### FYI\nInformation about store here.\n\n* Think what **you** will _about_ it.');
+
 loginPresentation.set('contents', [
-  'Please login to see the fun stuff.',
+  '>',
+  'Please login in:',
   '-',
-  new tgi.Attribute({name: 'login', label: 'Login', type: 'String(20)', hint: {required: true}, value: ''}),
+  login,
   new tgi.Attribute({name: 'password', label: 'Password', type: 'String(20)', hint: {password: true}, value: ''}),
-  new tgi.Attribute({name: 'store', label: 'Store', type: 'String', quickPick: storePicks, value: '(memory store)'}),
+  new tgi.Attribute({name: 'store', label: 'Store', type: 'String(20)', quickPick: storePicks, value: storePicks[0]}),
+  storeInfoText,
   '-',
   new tgi.Command({
     name: 'Login', type: 'Function', theme: 'info', icon: 'fa-sign-in', contents: function () {
-      console.log('bing');;
       loginPresentation.validate(function () {
-
         if (loginPresentation.validationMessage) {
-          app.info('error: ' + loginPresentation.validationMessage);
+          app.info('Please correct: ' + login.validationErrors[0]);
         } else {
           app.info('no error');
           // $("#panel1").show(); // todo don't hard code ?
@@ -233,21 +283,48 @@ var loginCommand = new tgi.Command({
 });
 
 /**
+ * DOM leakage testing
+ */
+
+
+var globalShit = {};
+
+var commandDefaultList = new tgi.Command({
+  name: 'commandDefaultList',
+  type: 'Presentation',
+  icon: 'fa-table',
+  contents: listPresentation
+});
+
+var domTestCommand = new tgi.Command({
+  name: 'dom test',
+  type: 'Function',
+  contents: function () {
+    var iterations = 100; // 10000 good for testing
+    app.info('Running ' + iterations + ' iterations.');
+    setTimeout(function () {
+      for (var j = 0; j < iterations; j++) {
+        attributeCommand.execute(ui);
+        ui.destroyPanel(ui.panels[ui.panels.length - 1]);
+      }
+      app.info('Tests done - Compare heap snapshots now.');
+    }, 250);
+  }
+});
+
+/**
  * Navigation
  */
 nav.set('contents', [
+  defaultCommand,
   infoCommand,
-  commandCommand,
-  listCommand,
-  attributeCommand,
   beerCommand,
-  loginCommand,
-  defaultCommand,
-  defaultCommand,
-  defaultCommand,
-  defaultCommand,
-  defaultCommand,
-  defaultCommand
+  commandCommand,
+  attributeCommand,
+  listCommand,
+  domTestCommand,
+  '-',
+  loginCommand
 ]);
 
 /**
@@ -256,4 +333,4 @@ nav.set('contents', [
 app.start(function (request) {
   app.info('app got ' + request);
 });
-//attributeCommand.execute(f7);
+listCommand.execute(ui);
