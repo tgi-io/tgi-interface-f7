@@ -3,6 +3,7 @@ Interface using framework7
 
 todo
 ----
+- some presentation gliches with - or >
 - submenu broken (SEE LIST)
 - implement list
 - next routine to gather values and put into attributes of presentation - bootstrap / core also ?
